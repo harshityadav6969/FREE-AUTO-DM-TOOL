@@ -1,111 +1,162 @@
-import React, { useState } from 'react';
-import { 
-  Instagram, 
-  Search, 
-  XCircle, 
-  CheckCircle2, 
-  ArrowRight, 
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Instagram,
+  XCircle,
+  CheckCircle2,
   Loader2,
   HelpCircle,
-  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
-interface ConnectInstagramProps {
-  onSuccess: (token: string) => void;
-}
+type IgAccount = {
+  username: string;
+  name: string;
+  followers: string;
+  posts: string | number;
+  profilePic: string;
+};
 
-export default function ConnectInstagram({ onSuccess }: ConnectInstagramProps) {
+export default function ConnectInstagramPage() {
+  const navigate = useNavigate();
   const [step, setStep] = useState<'IDLE' | 'SEARCHING' | 'FOUND' | 'ERROR'>('IDLE');
   const [username, setUsername] = useState('');
-  const [foundAccount, setFoundAccount] = useState<any>(null);
+  const [foundAccount, setFoundAccount] = useState<IgAccount | null>(null);
+  const [suggestions, setSuggestions] = useState<IgAccount[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [backendDown, setBackendDown] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchSeq = useRef(0);
 
-  const handleFindAccount = async () => {
-    if (!username) return;
-    setStep('SEARCHING');
-    
-    // Simulate finding account to match the user's flow in screenshots
-    // In a real production app, you might check if this username is a known business account
-    // or has been previously connected.
-    setTimeout(() => {
-      // Mocking account "boostuppmedia" from screenshot for demo purposes
-      if (username.toLowerCase().includes('boostupp')) {
-        setFoundAccount({
-          username: 'boostuppmedia',
-          name: 'Boostupp media',
-          followers: '66.6K',
-          posts: 10,
-          profilePic: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=128&h=128&fit=crop'
-        });
-        setStep('FOUND');
-      } else {
-        setStep('ERROR');
-      }
-    }, 1500);
-  };
+  const query = useMemo(
+    () => username.trim().replace(/^@+/, ''),
+    [username]
+  );
 
-const handleOAuth = async () => {
-  setIsOAuthLoading(true);
-
-  try {
-
-    const res = await axios.get(
-      "http://localhost:3000/api/auth/ig/url"
-    );
-
-    const { url } = res.data;
-
-    console.log("AUTH URL:", url);
-
-    if (!url) {
-      alert("OAuth URL missing");
+  useEffect(() => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      setIsSuggesting(false);
       return;
     }
 
-    const authWindow = window.open(
-      url,
-      "ig_auth",
-      "width=600,height=800"
-    );
-
-    const handleMessage = (event: MessageEvent) => {
-
-      if (event.data?.type === "IG_AUTH_SUCCESS") {
-
-        const { token } = event.data;
-
-        console.log("INSTAGRAM TOKEN:", token);
-
-        onSuccess(token);
-
-        setIsOAuthLoading(false);
-
-        window.removeEventListener(
-          "message",
-          handleMessage
-        );
-
-        alert("Instagram Connected ✅");
+    const seq = ++searchSeq.current;
+    const timer = setTimeout(async () => {
+      setIsSuggesting(true);
+      try {
+        const res = await axios.get('/api/ig/search', {
+          params: { q: query },
+          timeout: 10000,
+        });
+        if (seq !== searchSeq.current) return;
+        setBackendDown(false);
+        setSuggestions(res.data?.accounts || []);
+        setShowSuggestions(true);
+      } catch {
+        if (seq !== searchSeq.current) return;
+        setBackendDown(true);
+        setSuggestions([
+          {
+            username: query,
+            name: query,
+            followers: '—',
+            posts: '—',
+            profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(query)}&background=111827&color=fff`,
+          },
+        ]);
+        setShowSuggestions(true);
+      } finally {
+        if (seq === searchSeq.current) setIsSuggesting(false);
       }
-    };
+    }, 350);
 
-    window.addEventListener(
-      "message",
-      handleMessage
-    );
+    return () => clearTimeout(timer);
+  }, [query]);
 
-  } catch (error) {
+  const selectAccount = (account: IgAccount) => {
+    setUsername(account.username);
+    setFoundAccount(account);
+    setStep('FOUND');
+    setShowSuggestions(false);
+  };
 
-    console.error("IG Auth Error:", error);
+  const handleFindAccount = async () => {
+    if (!query) return;
+    setStep('SEARCHING');
+    setShowSuggestions(false);
 
-    alert("Failed to start Instagram connection.");
+    try {
+      const res = await axios.get('/api/ig/search', {
+        params: { q: query },
+        timeout: 10000,
+      });
+      const accounts: IgAccount[] = res.data?.accounts || [];
+      const exact =
+        accounts.find((a) => a.username.toLowerCase() === query.toLowerCase()) ||
+        accounts[0];
 
-    setIsOAuthLoading(false);
-  }
-};
+      if (exact) {
+        selectAccount(exact);
+        setBackendDown(false);
+        return;
+      }
+      setStep('ERROR');
+    } catch {
+      setBackendDown(true);
+      selectAccount({
+        username: query,
+        name: query,
+        followers: '—',
+        posts: '—',
+        profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(query)}&background=111827&color=fff`,
+      });
+    }
+  };
+
+  const handleOAuth = async () => {
+    setIsOAuthLoading(true);
+
+    try {
+      const res = await axios.get('/api/auth/ig/url', { timeout: 8000 });
+      const { url } = res.data;
+      if (res.data.redirectUri) {
+        console.log('Use this exact redirect URI in Meta:', res.data.redirectUri);
+      }
+
+      if (!url) {
+        alert('OAuth URL missing. Check META_APP_ID in .env');
+        setIsOAuthLoading(false);
+        return;
+      }
+
+      const authWindow = window.open(url, 'ig_auth', 'width=600,height=800');
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'IG_AUTH_SUCCESS') {
+          const { token } = event.data;
+          localStorage.setItem('ig_access_token', token);
+          if (foundAccount) {
+            localStorage.setItem('ig_username', foundAccount.username);
+          }
+          window.removeEventListener('message', handleMessage);
+          authWindow?.close();
+          setIsOAuthLoading(false);
+          navigate('/dashboard?connected=1');
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+    } catch (error) {
+      console.error('IG Auth Error:', error);
+      alert(
+        'Failed to start Instagram connection. Keep this app running with npm run server (port 3000), and also run npm run dev. Meta must use this exact redirect URI: your APP_URL + /auth/ig/callback'
+      );
+      setIsOAuthLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-xl mx-auto py-12 px-6">
@@ -114,37 +165,87 @@ const handleOAuth = async () => {
           Connect your Creator or <br /> Business Instagram
         </h1>
         <p className="text-white/60 text-sm leading-relaxed max-w-md mx-auto">
-          We'll connect through Meta official login - make sure you are logged in a 
+          We'll connect through Meta official login - make sure you are logged in a
           Creator or Business account in the browser. <span className="text-white underline decoration-white/20 cursor-pointer hover:decoration-white transition-all">Need Help?</span>
         </p>
       </div>
+
+      {backendDown && (
+        <div className="mb-6 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 text-amber-100 text-xs">
+          The API server on port 3000 is not reachable. Start it with <span className="font-mono">npm run server</span> in another terminal, then search again.
+        </div>
+      )}
 
       <div className="space-y-6">
         <div className="space-y-3">
           <label className="text-xs font-bold text-white tracking-wide">Your Instagram username</label>
           <div className="relative group">
-            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-white transition-colors">@</div>
-            <input 
-              type="text" 
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-white transition-colors z-10">@</div>
+            <input
+              type="text"
               placeholder="your_username"
               value={username}
+              autoComplete="off"
+              onFocus={() => query.length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
               onChange={(e) => {
                 setUsername(e.target.value);
                 if (step !== 'IDLE') setStep('IDLE');
+                setFoundAccount(null);
+                setShowSuggestions(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleFindAccount();
               }}
               className={cn(
-                "w-full bg-[#0A0A0B] border-2 rounded-2xl pl-10 pr-6 py-4 text-white focus:outline-none transition-all font-medium",
-                step === 'ERROR' ? "border-red-500/50" : 
-                step === 'FOUND' ? "border-lime-400/50" : 
+                "w-full bg-[#0A0A0B] border-2 rounded-2xl pl-10 pr-12 py-4 text-white focus:outline-none transition-all font-medium",
+                step === 'ERROR' ? "border-red-500/50" :
+                step === 'FOUND' ? "border-lime-400/50" :
                 "border-white/10 focus:border-white"
               )}
             />
+            {isSuggesting && (
+              <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 size-4 animate-spin text-white/40" />
+            )}
+
+            <AnimatePresence>
+              {showSuggestions && step !== 'FOUND' && suggestions.length > 0 && (
+                <motion.ul
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 max-h-80 overflow-auto rounded-2xl border border-white/10 bg-[#111113] shadow-2xl"
+                >
+                  {suggestions.map((account) => (
+                    <li key={account.username}>
+                      <button
+                        type="button"
+                        onClick={() => selectAccount(account)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 text-left"
+                      >
+                        <img
+                          src={account.profilePic}
+                          alt=""
+                          className="size-10 rounded-xl object-cover bg-white/10"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white truncate">{account.name}</p>
+                          <p className="text-[11px] text-white/40 truncate">@{account.username}</p>
+                        </div>
+                        <span className="ml-auto text-[10px] text-white/30 shrink-0">
+                          {account.followers} followers
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </motion.ul>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
         <AnimatePresence mode="wait">
           {step === 'ERROR' && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -162,7 +263,7 @@ const handleOAuth = async () => {
                 </div>
               </div>
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setStep('IDLE')}
                   className="bg-red-500 text-white text-[11px] font-bold px-5 py-2.5 rounded-xl hover:bg-red-600 transition-all font-sans"
                 >
@@ -176,7 +277,7 @@ const handleOAuth = async () => {
           )}
 
           {step === 'FOUND' && foundAccount && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -204,7 +305,7 @@ const handleOAuth = async () => {
 
         <div className="pt-4 space-y-4">
           {step === 'FOUND' ? (
-            <button 
+            <button
               onClick={handleOAuth}
               disabled={isOAuthLoading}
               className="w-full bg-lime-400 text-black py-4 rounded-[1.5rem] font-black text-sm uppercase tracking-widest hover:bg-lime-300 transition-all active:scale-95 shadow-lg shadow-lime-400/20 flex items-center justify-center gap-2"
@@ -213,12 +314,12 @@ const handleOAuth = async () => {
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <>
-                  <Instagram className="size-4" /> Sign in as @{foundAccount.username}
+                  <Instagram className="size-4" /> Sign in as @{foundAccount?.username}
                 </>
               )}
             </button>
           ) : (
-            <button 
+            <button
               onClick={handleFindAccount}
               disabled={step === 'SEARCHING' || !username}
               className="w-full bg-white text-black py-4 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-white/90 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
@@ -229,7 +330,7 @@ const handleOAuth = async () => {
           )}
         </div>
       </div>
-      
+
       <div className="mt-12 p-6 bg-white/5 border border-white/5 rounded-3xl space-y-4">
         <div className="flex items-center gap-2 text-indigo-400">
            <HelpCircle className="size-4" />
@@ -240,7 +341,7 @@ const handleOAuth = async () => {
             <div className="size-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-[10px] font-bold shrink-0">1</div>
             <div>
               <p className="text-xs text-white font-bold">Search your account</p>
-              <p className="text-[10px] text-white/40 mt-0.5 leading-relaxed italic">Enter your username so we can verify if your account is eligible for automation.</p>
+              <p className="text-[10px] text-white/40 mt-0.5 leading-relaxed italic">Type a username to see matching account suggestions, then confirm it.</p>
             </div>
           </div>
           <div className="flex gap-3">

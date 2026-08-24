@@ -35,7 +35,13 @@ export default function Dashboard() {
   // ✅ CHECK URL PARAM
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("connected")) {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const token = hash.get("ig_token");
+    if (token) {
+      localStorage.setItem("ig_access_token", token);
+      window.history.replaceState({}, "", "/dashboard?connected=1");
+    }
+    if (params.get("connected") || params.get("connected") === "1" || token || localStorage.getItem("ig_access_token")) {
       setConnected(true);
     }
   }, []);

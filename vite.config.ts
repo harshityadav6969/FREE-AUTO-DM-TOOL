@@ -20,6 +20,20 @@ export default defineConfig(({ mode }) => {
       host: true,
       allowedHosts: ['claim-ladder-exile.ngrok-free.dev'],
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+        },
+        '/auth': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+        },
+        '/webhook': {
+          target: 'http://127.0.0.1:3000',
+          changeOrigin: true,
+        },
+      },
     },
   };
 });
