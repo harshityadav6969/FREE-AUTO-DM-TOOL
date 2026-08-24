@@ -1,0 +1,127 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and subscription data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "subscriptionTier": { "type": "string", "enum": ["FREE", "PRO", "ENTERPRISE"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "Connected Instagram/Facebook account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "instagramId": { "type": "string" },
+        "pageId": { "type": "string" },
+        "pageAccessToken": { "type": "string" },
+        "verifyToken": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "profilePicture": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["instagramId", "pageAccessToken"]
+    },
+    "Media": {
+      "title": "Media",
+      "description": "Instagram post or reel meta data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "mediaId": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["IMAGE", "VIDEO", "REEL", "CAROUSEL_ALBUM"] },
+        "mediaUrl": { "type": "string" },
+        "permalink": { "type": "string" },
+        "caption": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "ruleCount": { "type": "number" }
+      },
+      "required": ["mediaId"]
+    },
+    "Rule": {
+      "title": "Rule",
+      "description": "Automation rule for a specific media or global",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "mediaId": { "type": "string" },
+        "triggerKeyword": { "type": "string" },
+        "triggerType": { "type": "string", "enum": ["EXACT", "CONTAINS", "WILDCARD"] },
+        "resource": { "type": "string" },
+        "requireFollow": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "delaySeconds": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["triggerKeyword", "resource"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "Activity log for events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "eventType": { "type": "string", "enum": ["COMMENT_REPLIED", "DM_SENT", "RESOURCE_DELIVERED", "FOLLOW_PROMPT", "ERROR"] },
+        "instagramUserId": { "type": "string" },
+        "username": { "type": "string" },
+        "mediaId": { "type": "string" },
+        "ruleId": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventType", "timestamp"]
+    },
+    "Template": {
+      "title": "Template",
+      "description": "Message pool template",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["SUCCESS", "FOLLOW_PROMPT", "DM_BLOCKED", "DUPLICATE", "AI_REPLY"] },
+        "messages": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "messages"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "/users/{uid}/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "Instagram accounts connected to the user"
+    },
+    "/users/{uid}/accounts/{accountId}/media/{mediaId}": {
+      "schema": "Media",
+      "description": "Cached media items for the account"
+    },
+    "/users/{uid}/accounts/{accountId}/rules/{ruleId}": {
+      "schema": "Rule",
+      "description": "Automation rules for the account"
+    },
+    "/users/{uid}/accounts/{accountId}/logs/{logId}": {
+      "schema": "Log",
+      "description": "Activity history for the account"
+    },
+    "/users/{uid}/accounts/{accountId}/templates/{templateId}": {
+      "schema": "Template",
+      "description": "Message pools for the account"
+    }
+  }
+}
