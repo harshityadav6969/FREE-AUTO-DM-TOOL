@@ -1,25 +1,20 @@
-export const config = { runtime: "nodejs", maxDuration: 20 };
+export const config = { runtime: "nodejs", maxDuration: 10 };
 
 export default async function handler(request: Request) {
-  try {
-    const token = new URL(request.url).searchParams.get("accessToken") || "";
-    if (!token) {
-      return Response.json({ error: "Missing access token" }, { status: 400 });
-    }
+  const token = new URL(request.url).searchParams.get("accessToken") || "";
+  if (!token) {
+    return Response.json({ error: "Missing access token" }, { status: 400 });
+  }
 
-    const fields =
-      "user_id,username,name,account_type,profile_picture_url,followers_count,media_count";
+  try {
     const res = await fetch(
-      `https://graph.instagram.com/v21.0/me?fields=${fields}&access_token=${encodeURIComponent(token)}`
+      `https://graph.instagram.com/v21.0/me?fields=user_id,username,name,account_type,profile_picture_url,followers_count,media_count&access_token=${encodeURIComponent(token)}`,
+      { signal: AbortSignal.timeout(7000) }
     );
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return Response.json({ error: data }, { status: 500 });
-    }
-
-    const id = String(data.user_id || data.id || "");
+    if (!res.ok) return Response.json({ error: data }, { status: 400 });
     return Response.json({
-      instagramId: id,
+      instagramId: String(data.user_id || data.id || ""),
       username: data.username || "",
       name: data.name || data.username || "",
       profilePicture: data.profile_picture_url || "",
@@ -30,6 +25,6 @@ export default async function handler(request: Request) {
       isActive: true,
     });
   } catch (error) {
-    return Response.json({ error: String(error) }, { status: 500 });
+    return Response.json({ error: String(error) }, { status: 504 });
   }
 }

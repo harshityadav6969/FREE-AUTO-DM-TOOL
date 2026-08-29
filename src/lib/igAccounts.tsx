@@ -26,10 +26,24 @@ type Ctx = {
 
 const IgContext = createContext<Ctx | undefined>(undefined);
 
-export async function persistIgAccount(uid: string, token: string) {
-  const res = await axios.get("/api/ig/me", { params: { accessToken: token } });
-  const profile = res.data as IgAccount;
-  const instagramId = String(profile.instagramId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+export async function persistIgAccount(uid: string, token: string, knownId = "") {
+  let profile: Partial<IgAccount> = {
+    instagramId: knownId,
+    pageAccessToken: token,
+    isActive: true,
+  };
+
+  try {
+    const res = await axios.get("/api/ig/me", {
+      params: { accessToken: token },
+      timeout: 8000,
+    });
+    profile = { ...profile, ...(res.data as IgAccount) };
+  } catch (error) {
+    console.error("Instagram profile fetch skipped", error);
+  }
+
+  const instagramId = String(profile.instagramId || knownId).replace(/[^a-zA-Z0-9_-]/g, "");
   if (!instagramId) throw new Error("No Instagram user id");
 
   const payload = {
@@ -43,16 +57,18 @@ export async function persistIgAccount(uid: string, token: string) {
     isActive: true,
   };
 
+  const saved = { id: instagramId, ...payload } as IgAccount;
   localStorage.setItem("ig_access_token", token);
   localStorage.setItem("ig_connected", "1");
   localStorage.setItem("ig_username", payload.username);
   localStorage.setItem("ig_user_id", instagramId);
+  localStorage.setItem("ig_account", JSON.stringify(saved));
   try {
     await setDoc(doc(db, `users/${uid}/accounts/${instagramId}`), payload, { merge: true });
   } catch (error) {
     console.error("Firestore account save skipped", error);
   }
-  return { id: instagramId, ...payload } as IgAccount;
+  return saved;
 }
 
 export function IgAccountsProvider({ children }: { children: React.ReactNode }) {
@@ -66,20 +82,16 @@ export function IgAccountsProvider({ children }: { children: React.ReactNode }) 
       setLoading(false);
       return;
     }
-    const hydrateLocal = async () => {
-      const token = localStorage.getItem("ig_access_token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+    const hydrateLocal = () => {
       try {
-        const saved = await persistIgAccount(user.uid, token);
-        if (saved) setAccounts([saved]);
-      } catch (error) {
-        console.error("Local Instagram restore failed", error);
-      } finally {
-        setLoading(false);
+        const cached = localStorage.getItem("ig_account");
+        if (cached) {
+          setAccounts([JSON.parse(cached) as IgAccount]);
+        }
+      } catch {
+        // ignore
       }
+      setLoading(false);
     };
 
     const unsub = onSnapshot(

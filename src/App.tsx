@@ -30,9 +30,16 @@ function readIgOAuthCode() {
 function InstagramOAuthCatcher() {
   const navigate = useNavigate();
   const { user, loading, signIn } = useAuth();
-  const [code] = React.useState(() => readIgOAuthCode());
+  const [code, setCode] = React.useState(() => readIgOAuthCode());
   const [error, setError] = React.useState("");
   const handled = React.useRef(false);
+
+  const dismiss = () => {
+    sessionStorage.removeItem(IG_CODE_KEY);
+    igExchangeLock = "";
+    setCode("");
+    window.location.replace("/connect-instagram");
+  };
 
   React.useEffect(() => {
     if (!code || handled.current || loading) return;
@@ -43,30 +50,28 @@ function InstagramOAuthCatcher() {
 
     (async () => {
       try {
-        let token = "";
-        const paths = ["/api/ig-exchange", "/api/auth/ig/exchange", "/api/auth/ig-exchange"];
-        for (const path of paths) {
-          try {
-            const res = await axios.post(path, { code });
-            token = res.data?.token || "";
-            if (token) break;
-          } catch {
-            // try next exchange path
-          }
-        }
+        const res = await axios.post(
+          "/api/ig-exchange",
+          { code },
+          { timeout: 9000 }
+        );
+        const token = res.data?.token || "";
+        const instagramId = String(res.data?.instagramId || "");
         if (!token) throw new Error("No Instagram token");
         try {
-          await persistIgAccount(user.uid, token);
+          await persistIgAccount(user.uid, token, instagramId);
         } catch (persistError) {
           console.error("Saved Instagram token locally; Firestore sync failed", persistError);
           localStorage.setItem("ig_access_token", token);
           localStorage.setItem("ig_connected", "1");
+          if (instagramId) localStorage.setItem("ig_user_id", instagramId);
         }
         sessionStorage.removeItem(IG_CODE_KEY);
+        setCode("");
         navigate("/dashboard?connected=1", { replace: true });
       } catch (err) {
         console.error("Instagram code exchange failed", err);
-        setError("Could not finish Instagram login. You can retry from Connect Instagram.");
+        setError("Could not finish Instagram login. Click below to try again.");
         sessionStorage.removeItem(IG_CODE_KEY);
       }
     })();
@@ -82,7 +87,8 @@ function InstagramOAuthCatcher() {
             <h1 className="text-xl font-bold mb-2">Instagram connect failed</h1>
             <p className="text-sm text-black/55 mb-6">{error}</p>
             <button
-              onClick={() => navigate("/connect-instagram", { replace: true })}
+              type="button"
+              onClick={dismiss}
               className="w-full bg-[#D4FF00] text-black font-bold py-3 rounded-2xl"
             >
               Back to Connect Instagram
@@ -95,6 +101,7 @@ function InstagramOAuthCatcher() {
               Instagram approved access. Sign in with Google so we can save the account to your workspace.
             </p>
             <button
+              type="button"
               onClick={() => signIn()}
               className="w-full bg-black text-white font-bold py-3 rounded-2xl"
             >
@@ -106,6 +113,13 @@ function InstagramOAuthCatcher() {
             <div className="mx-auto size-10 border-t-2 border-black rounded-full animate-spin mb-4" />
             <h1 className="text-xl font-bold mb-2">Connecting Instagram</h1>
             <p className="text-sm text-black/55">Finishing Meta login and saving your account…</p>
+            <button
+              type="button"
+              onClick={dismiss}
+              className="mt-6 text-sm text-black/50 underline"
+            >
+              Cancel
+            </button>
           </>
         )}
       </div>

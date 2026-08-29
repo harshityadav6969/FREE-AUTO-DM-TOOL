@@ -1,5 +1,10 @@
 {
   "framework": "vite",
+  "functions": {
+    "api/ig-exchange.ts": { "maxDuration": 10 },
+    "api/ig/me.ts": { "maxDuration": 10 },
+    "api/ig/media.ts": { "maxDuration": 10 }
+  },
   "rewrites": [
     { "source": "/auth/:path*", "destination": "/api/auth/:path*" },
     { "source": "/webhook", "destination": "/api/webhook" },
