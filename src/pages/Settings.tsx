@@ -42,7 +42,7 @@ export default function Settings() {
           <h1 className="text-2xl md:text-3xl font-bold">Settings</h1>
           <p className="text-black/40 text-sm mt-1">Configure your workspace and connected Instagram account.</p>
         </div>
-        <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full sm:w-auto">
+        <button className="bg-[#D4FF00] text-black px-8 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#c6f000] transition-all active:scale-95 w-full sm:w-auto">
           <Save className="size-4" /> Save Changes
         </button>
       </header>
@@ -56,12 +56,12 @@ export default function Settings() {
                onClick={() => setActiveTab(tab.id)}
                className={cn(
                  "flex items-center gap-4 px-6 py-4 rounded-[1.5rem] text-sm font-bold transition-all relative group whitespace-nowrap min-w-max lg:min-w-0",
-                 activeTab === tab.id ? "bg-white/5 text-white" : "text-white/20 hover:text-white/40"
+                 activeTab === tab.id ? "bg-black/5 text-black" : "text-black/70 hover:text-black"
                )}
              >
-                <tab.icon className={cn("size-5", activeTab === tab.id ? "text-indigo-400" : "text-white/20")} />
+                <tab.icon className={cn("size-5", activeTab === tab.id ? "text-black" : "text-black/70")} />
                 {tab.label}
-                {activeTab === tab.id && <motion.div layoutId="tab-indicator" className="absolute bottom-0 lg:bottom-auto lg:left-0 w-full lg:w-1 h-1 lg:h-6 bg-indigo-500 rounded-full" />}
+                {activeTab === tab.id && <motion.div layoutId="tab-indicator" className="absolute bottom-0 lg:bottom-auto lg:left-0 w-full lg:w-1 h-1 lg:h-6 bg-[#D4FF00] rounded-full" />}
              </button>
            ))}
         </aside>
@@ -78,12 +78,12 @@ export default function Settings() {
                 <div className="space-y-8">
                    <h3 className="text-xl font-light text-white italic">Linked Account</h3>
                    <div className="p-6 bg-white/5 rounded-3xl border border-white/5 flex flex-col sm:flex-row items-center gap-6">
-                      <div className="size-16 rounded-[1.5rem] bg-indigo-500/10 flex items-center justify-center border-2 border-indigo-500/20">
-                         <Instagram className="size-8 text-indigo-400" />
+                      <div className="size-16 rounded-[1.5rem] bg-[#D4FF00] flex items-center justify-center border-2 border-black/5">
+                         <Instagram className="size-8 text-black" />
                       </div>
                       <div className="flex-1 text-center sm:text-left">
-                         <p className="text-sm font-black">{connected ? `@${primary?.username}` : "No Instagram connected"}</p>
-                         <p className="text-xs text-black/40">{connected ? `${primary?.followersCount?.toLocaleString() || 0} followers` : "Connect a Business or Creator account"}</p>
+                         <p className="text-sm font-black text-white">{connected ? `@${primary?.username}` : "No Instagram connected"}</p>
+                         <p className="text-xs text-white/70">{connected ? `${primary?.followersCount?.toLocaleString() || 0} followers` : "Connect a Business or Creator account"}</p>
                       </div>
                       <button onClick={() => navigate("/connect-instagram")} className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-[#D4FF00] rounded-xl">
                         {connected ? "Reconnect" : "Connect"}
@@ -99,9 +99,9 @@ export default function Settings() {
                               type="password" 
                               value="••••••••••••••••••••••••"
                               readOnly
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-14 py-4 text-white/60 focus:outline-none focus:border-indigo-500/30 transition-all font-mono text-xs"
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-14 py-4 text-white/60 focus:outline-none focus:border-[#D4FF00]/50 transition-all font-mono text-xs"
                             />
-                            <button className="absolute right-5 top-4 px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-lg text-[10px] font-bold">Update</button>
+                            <button className="absolute right-5 top-4 px-3 py-1 bg-[#D4FF00] text-black rounded-lg text-[10px] font-bold">Update</button>
                          </div>
                       </div>
                       <div className="space-y-3">
@@ -109,7 +109,7 @@ export default function Settings() {
                          <input 
                             type="text" 
                             placeholder="BOOSTUPP"
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-indigo-500/30 transition-all font-mono text-xs"
+                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-[#D4FF00]/50 transition-all font-mono text-xs"
                          />
                       </div>
                    </div>
@@ -125,8 +125,8 @@ export default function Settings() {
                       {Object.entries(templates).map(([key, pool]) => (
                         <div key={key} className="space-y-4">
                            <div className="flex items-center justify-between">
-                              <h4 className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.2em]">{key} MESSAGES</h4>
-                              <button className="text-indigo-400 hover:text-indigo-300 transition-colors">
+                              <h4 className="text-[11px] font-black text-[#D4FF00] uppercase tracking-[0.2em]">{key} MESSAGES</h4>
+                              <button className="text-[#D4FF00] hover:text-white transition-colors">
                                  <Plus className="size-4" />
                               </button>
                            </div>

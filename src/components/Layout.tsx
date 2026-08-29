@@ -47,7 +47,7 @@ export default function Layout() {
   const sidebar = (
     <>
       <div className="px-5 pt-6 pb-4">
-        <h1 className="text-[22px] font-black tracking-tight text-black">CREATORFLOW</h1>
+        <h1 className="text-[22px] font-black tracking-tight text-black">InstaFlow</h1>
         <div className="mt-4 flex items-center gap-3 rounded-2xl border border-black/5 bg-black/[0.03] px-3 py-2">
           <img
             src={profile?.photoURL || `https://ui-avatars.com/api/?name=${profile?.displayName}`}
@@ -184,7 +184,7 @@ export default function Layout() {
         </div>
 
         <header className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-black/5">
-          <h1 className="font-black">CREATORFLOW</h1>
+          <h1 className="font-black">InstaFlow</h1>
           <button onClick={() => setIsMobileMenuOpen(true)} className="p-2">
             <Menu className="size-5" />
           </button>
