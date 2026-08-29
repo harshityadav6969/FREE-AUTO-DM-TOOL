@@ -9,6 +9,8 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { buildIgAuthUrl, localAccountSuggestion } from '../lib/instagram';
+import { useIgAccounts } from '../lib/igAccounts';
+import axios from 'axios';
 
 type IgAccount = {
   username: string;
@@ -19,6 +21,7 @@ type IgAccount = {
 };
 
 export default function ConnectInstagramPage() {
+  const { primary } = useIgAccounts();
   const [step, setStep] = useState<'IDLE' | 'SEARCHING' | 'FOUND' | 'ERROR'>('IDLE');
   const [username, setUsername] = useState('');
   const [foundAccount, setFoundAccount] = useState<IgAccount | null>(null);
@@ -41,13 +44,33 @@ export default function ConnectInstagramPage() {
     }
 
     const seq = ++searchSeq.current;
-    const timer = setTimeout(() => {
-      if (seq !== searchSeq.current) return;
-      const suggestion = localAccountSuggestion(query);
-      setIsSuggesting(false);
-      setSuggestions(suggestion ? [suggestion] : []);
-      setShowSuggestions(Boolean(suggestion));
-    }, 200);
+    setIsSuggesting(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await axios.get("/api/ig/search", {
+          params: {
+            q: query,
+            accessToken: primary?.pageAccessToken || "",
+            igUserId: primary?.instagramId || "",
+          },
+        });
+        if (seq !== searchSeq.current) return;
+        const accounts = res.data?.accounts?.length
+          ? res.data.accounts
+          : localAccountSuggestion(query)
+            ? [localAccountSuggestion(query)]
+            : [];
+        setSuggestions(accounts);
+        setShowSuggestions(accounts.length > 0);
+      } catch {
+        if (seq !== searchSeq.current) return;
+        const suggestion = localAccountSuggestion(query);
+        setSuggestions(suggestion ? [suggestion] : []);
+        setShowSuggestions(Boolean(suggestion));
+      } finally {
+        if (seq === searchSeq.current) setIsSuggesting(false);
+      }
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [query]);

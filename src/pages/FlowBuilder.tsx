@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
+import { useIgAccounts } from '../lib/igAccounts';
 import { db } from '../lib/firebase';
 import { 
   collection, 
@@ -42,10 +43,11 @@ interface Rule {
 
 export default function FlowBuilder() {
   const { user } = useAuth();
+  const { primary } = useIgAccounts();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const mediaId = searchParams.get('mediaId');
-  const accountId = searchParams.get('accountId');
+  const accountId = searchParams.get('accountId') || primary?.id || "";
   
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +61,7 @@ export default function FlowBuilder() {
 
   useEffect(() => {
     if (!user || !accountId) {
-      if (!loading) setLoading(false);
+      setLoading(false);
       return;
     }
 
@@ -132,18 +134,13 @@ export default function FlowBuilder() {
   if (!accountId) {
     return (
       <div className="py-20 text-center space-y-6">
-        <div className="bg-white/5 size-20 rounded-[2.5rem] flex items-center justify-center mx-auto border border-white/5">
-          <AlertCircle className="size-10 text-white/10" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-light text-white italic">No account selected</h2>
-          <p className="text-white/40 text-sm max-w-xs mx-auto">Please select a post from the Media Manager to build automation rules.</p>
-        </div>
+        <h2 className="text-2xl font-bold">Connect Instagram first</h2>
+        <p className="text-black/50 text-sm">Automations need a connected Business or Creator account.</p>
         <button 
-          onClick={() => navigate('/media')}
-          className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-indigo-500 transition-all active:scale-95 text-xs uppercase tracking-widest"
+          onClick={() => navigate('/connect-instagram')}
+          className="bg-[#D4FF00] text-black px-8 py-3 rounded-2xl font-bold"
         >
-          Go to Media Manager
+          Reconnect Instagram
         </button>
       </div>
     );

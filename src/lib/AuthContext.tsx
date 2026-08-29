@@ -8,6 +8,8 @@ import {
   signOut 
 } from 'firebase/auth';
 import { auth } from './firebase';
+import { db } from './firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -26,8 +28,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+      setUser(nextUser);
+      if (nextUser) {
+        try {
+          const ref = doc(db, "users", nextUser.uid);
+          const existing = await getDoc(ref);
+          if (!existing.exists()) {
+            await setDoc(ref, {
+              uid: nextUser.uid,
+              email: nextUser.email ?? "",
+              displayName: nextUser.displayName ?? "User",
+              photoURL: nextUser.photoURL ?? "",
+              subscriptionTier: "FREE",
+              createdAt: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.error("Failed to create user profile", e);
+        }
+      }
       setLoading(false);
     });
     return unsubscribe;

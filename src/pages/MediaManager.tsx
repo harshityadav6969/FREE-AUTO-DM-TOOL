@@ -78,7 +78,6 @@ export default function MediaManager() {
     try {
       const res = await axios.get('/api/ig/media', {
         params: {
-          igId: account.instagramId,
           accessToken: account.pageAccessToken
         }
       });
@@ -121,14 +120,14 @@ export default function MediaManager() {
           <Instagram className="size-10 text-white/10" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-light text-white italic">No accounts linked</h2>
-          <p className="text-white/40 text-sm max-w-xs mx-auto">Please connect an Instagram Business account in Settings or Dashboard first.</p>
+          <h2 className="text-2xl font-bold text-black">No accounts linked</h2>
+          <p className="text-black/50 text-sm max-w-xs mx-auto">Please connect an Instagram Business account first.</p>
         </div>
         <button 
-          onClick={() => navigate('/dashboard')}
-          className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-indigo-500 transition-all active:scale-95 text-xs uppercase tracking-widest"
+          onClick={() => navigate('/connect-instagram')}
+          className="bg-[#D4FF00] text-black px-8 py-3 rounded-2xl font-bold"
         >
-          Go to Onboarding
+          Go to Connect Instagram
         </button>
       </div>
     );

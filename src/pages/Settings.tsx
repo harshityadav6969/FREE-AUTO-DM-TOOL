@@ -14,9 +14,15 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../lib/AuthContext';
+import { useIgAccounts } from '../lib/igAccounts';
+import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('ACCOUNTS');
+  const { profile } = useAuth();
+  const { primary, connected } = useIgAccounts();
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState({
     SUCCESS: ["Sent! Check your DM ✨", "Done! Open your inbox 🎁"],
     FOLLOW: ["Follow + DM again", "Check message requests"],
@@ -33,8 +39,8 @@ export default function Settings() {
     <div className="space-y-10">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-white tracking-tight italic">Settings</h1>
-          <p className="text-white/40 text-sm mt-1">Configure your workspace, API tokens, and automation templates.</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Settings</h1>
+          <p className="text-black/40 text-sm mt-1">Configure your workspace and connected Instagram account.</p>
         </div>
         <button className="bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 w-full sm:w-auto">
           <Save className="size-4" /> Save Changes
@@ -76,10 +82,12 @@ export default function Settings() {
                          <Instagram className="size-8 text-indigo-400" />
                       </div>
                       <div className="flex-1 text-center sm:text-left">
-                         <p className="text-sm font-black text-white">@premium_ig_account</p>
-                         <p className="text-xs text-white/40">Verified Business Account</p>
+                         <p className="text-sm font-black">{connected ? `@${primary?.username}` : "No Instagram connected"}</p>
+                         <p className="text-xs text-black/40">{connected ? `${primary?.followersCount?.toLocaleString() || 0} followers` : "Connect a Business or Creator account"}</p>
                       </div>
-                      <button className="text-[10px] font-black text-red-400 uppercase tracking-widest px-4 py-2 bg-red-500/5 rounded-xl hover:bg-red-500/10 transition-all w-full sm:w-auto">Disconnect</button>
+                      <button onClick={() => navigate("/connect-instagram")} className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-[#D4FF00] rounded-xl">
+                        {connected ? "Reconnect" : "Connect"}
+                      </button>
                    </div>
 
                    <div className="grid gap-6">
