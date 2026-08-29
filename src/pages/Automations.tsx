@@ -51,12 +51,12 @@ export default function Automations() {
     <div className="space-y-8">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-light text-white tracking-tight italic">Automations</h1>
-          <p className="text-white/40 text-sm mt-1">Manage your active flows and message triggers.</p>
+          <h1 className="text-3xl font-bold text-black tracking-tight">Automations</h1>
+          <p className="text-black/50 text-sm mt-1">Manage your active flows and message triggers.</p>
         </div>
         <Link 
           to="/automations/new"
-          className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/10 active:scale-95"
+          className="bg-[#D4FF00] text-black px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#c6f000] transition-all active:scale-95"
         >
           <Plus className="size-5" />
           + New Automation

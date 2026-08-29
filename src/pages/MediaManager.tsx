@@ -137,11 +137,11 @@ export default function MediaManager() {
     <div className="space-y-10">
       <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-1">
-          <h1 className="text-2xl md:text-3xl font-light text-white tracking-tight italic">Media Manager</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-black tracking-tight">Media Manager</h1>
           <div className="flex items-center gap-3">
              <div className="relative">
                 <button 
-                  className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl hover:bg-white/10 transition-all text-xs font-bold text-white/60"
+                  className="flex items-center gap-2 bg-white border border-black/10 px-3 py-1.5 rounded-xl hover:bg-black/5 transition-all text-xs font-bold text-black/70"
                 >
                   <img src={selectedAccount?.profilePicture} className="size-4 rounded-full" alt="" />
                   @{selectedAccount?.username}
@@ -149,8 +149,8 @@ export default function MediaManager() {
                 </button>
                 {/* Account Switcher Dropdown could go here */}
              </div>
-             <div className="size-1 rounded-full bg-white/20" />
-             <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+             <div className="size-1 rounded-full bg-black/20" />
+             <p className="text-black/40 text-[10px] font-bold uppercase tracking-widest">
                {media.length} Posts Synced
              </p>
           </div>
@@ -158,13 +158,13 @@ export default function MediaManager() {
         
         <div className="flex items-center gap-4">
            <div className="relative group flex-1 sm:flex-none">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-white/20 group-focus-within:text-indigo-400 transition-colors" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-black/30 group-focus-within:text-black transition-colors" />
               <input 
                 type="text" 
                 placeholder="Search posts..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="bg-white/5 border border-white/5 rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5 transition-all w-full sm:w-64"
+                className="bg-white border border-black/10 text-black rounded-2xl pl-12 pr-4 py-3 text-sm focus:outline-none focus:border-black transition-all w-full sm:w-64"
               />
            </div>
            <button 
@@ -238,10 +238,10 @@ export default function MediaManager() {
           {filteredMedia.length === 0 && !loading && (
              <div className="col-span-full py-40 text-center">
                 <div className="bg-white/5 size-20 rounded-[2.5rem] mx-auto flex items-center justify-center mb-6 border border-white/5">
-                   <Filter className="size-8 text-white/10" />
+                   <Filter className="size-8 text-black/20" />
                 </div>
-                <h3 className="text-xl font-light text-white italic">No media found</h3>
-                <p className="text-white/20 text-sm mt-1">Try syncing your account or clearing filters.</p>
+                <h3 className="text-xl font-bold text-black">No media found</h3>
+                <p className="text-black/40 text-sm mt-1">Try syncing your account or clearing filters.</p>
              </div>
           )}
         </AnimatePresence>

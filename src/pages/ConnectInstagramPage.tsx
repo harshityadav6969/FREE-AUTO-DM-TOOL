@@ -103,12 +103,12 @@ export default function ConnectInstagramPage() {
   return (
     <div className="max-w-xl mx-auto py-12 px-6">
       <div className="text-center space-y-4 mb-12">
-        <h1 className="text-4xl font-bold text-black tracking-tight">
-          Connect your Creator or <br /> Business Instagram
+        <h1 className="text-4xl font-black text-black tracking-tight">
+          Connect your Instagram <br /> Business account
         </h1>
         <p className="text-black/60 text-sm leading-relaxed max-w-md mx-auto">
-          We'll connect through Meta official login - make sure you are logged in a
-          Creator or Business account in the browser. <span className="text-black underline decoration-black/20 cursor-pointer hover:decoration-black transition-all">Need Help?</span>
+          We'll connect through Meta official login — make sure you are logged into an
+          Instagram Business or Professional account in the browser. <span className="text-black underline decoration-black/20 cursor-pointer hover:decoration-black transition-all">Need Help?</span>
         </p>
       </div>
 
@@ -194,7 +194,7 @@ export default function ConnectInstagramPage() {
                   <div className="space-y-1">
                     <p className="text-[11px] text-black/60">Most likely reasons:</p>
                     <p className="text-[11px] text-black font-medium">1. Typo in username</p>
-                    <p className="text-[11px] text-black font-medium">2. You have a Personal account (need Business/Creator)</p>
+                    <p className="text-[11px] text-black font-medium">2. You have a Personal account (need Business or Professional)</p>
                   </div>
                 </div>
               </div>
@@ -277,7 +277,7 @@ export default function ConnectInstagramPage() {
             <div className="size-6 rounded-full bg-[#D4FF00] text-black flex items-center justify-center text-[10px] font-bold shrink-0">1</div>
             <div>
               <p className="text-xs text-black font-bold">Search your account</p>
-              <p className="text-[10px] text-black/50 mt-0.5 leading-relaxed italic">Type a username to see matching account suggestions, then confirm it.</p>
+              <p className="text-[10px] text-black/50 mt-0.5 leading-relaxed italic">Enter your username. We'll search for your account on InstaFlow.</p>
             </div>
           </div>
           <div className="flex gap-3">

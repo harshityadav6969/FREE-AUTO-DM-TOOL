@@ -83,7 +83,7 @@ export default function Settings() {
                       </div>
                       <div className="flex-1 text-center sm:text-left">
                          <p className="text-sm font-black text-white">{connected ? `@${primary?.username}` : "No Instagram connected"}</p>
-                         <p className="text-xs text-white/70">{connected ? `${primary?.followersCount?.toLocaleString() || 0} followers` : "Connect a Business or Creator account"}</p>
+                         <p className="text-xs text-white/70">{connected ? `${primary?.followersCount?.toLocaleString() || 0} followers` : "Connect an Instagram Business account"}</p>
                       </div>
                       <button onClick={() => navigate("/connect-instagram")} className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-[#D4FF00] rounded-xl">
                         {connected ? "Reconnect" : "Connect"}

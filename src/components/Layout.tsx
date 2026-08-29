@@ -207,7 +207,7 @@ export default function Layout() {
               </div>
               <h2 className="text-xl font-bold mb-2">Your Instagram is disconnected</h2>
               <p className="text-sm text-black/55 mb-6">
-                Automations are paused until you reconnect a Business or Creator account. Connect now to start sending comment-to-DM replies.
+                Automations are paused until you reconnect an Instagram Business account. Connect now to start sending comment-to-DM replies.
               </p>
               <button
                 onClick={() => {

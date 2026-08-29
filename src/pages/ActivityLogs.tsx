@@ -28,18 +28,18 @@ export default function ActivityLogs() {
     <div className="space-y-10">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-white tracking-tight italic">Activity Logs</h1>
-          <p className="text-white/40 text-sm mt-1">Real-time stream of all automation events and responses.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-black tracking-tight">Activity Logs</h1>
+          <p className="text-black/50 text-sm mt-1">Real-time stream of all automation events and responses.</p>
         </div>
         <div className="flex items-center gap-4">
-           <div className="bg-white/5 border border-white/5 rounded-2xl flex p-1 overflow-x-auto no-scrollbar">
+           <div className="bg-white border border-black/10 rounded-2xl flex p-1 overflow-x-auto no-scrollbar">
               {['ALL', 'SUCCESS', 'PENDING', 'FAILED'].map(f => (
                 <button 
                   key={f}
                   onClick={() => setFilter(f)}
                   className={cn(
                     "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                    filter === f ? "bg-white/10 text-white shadow-lg" : "text-white/30 hover:text-white/50"
+                    filter === f ? "bg-black text-white shadow-lg" : "text-black/40 hover:text-black"
                   )}
                 >
                   {f}

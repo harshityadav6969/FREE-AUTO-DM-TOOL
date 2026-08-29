@@ -135,7 +135,7 @@ export default function FlowBuilder() {
     return (
       <div className="py-20 text-center space-y-6">
         <h2 className="text-2xl font-bold">Connect Instagram first</h2>
-        <p className="text-black/50 text-sm">Automations need a connected Business or Creator account.</p>
+        <p className="text-black/50 text-sm">Automations need a connected Instagram Business account.</p>
         <button 
           onClick={() => navigate('/connect-instagram')}
           className="bg-[#D4FF00] text-black px-8 py-3 rounded-2xl font-bold"
@@ -150,14 +150,14 @@ export default function FlowBuilder() {
     <div className="space-y-10">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-white tracking-tight italic">
-            Automation Rules {mediaId && <span className="text-white/20 ml-2"># {mediaId}</span>}
+          <h1 className="text-2xl md:text-3xl font-bold text-black tracking-tight">
+            Automation Rules {mediaId && <span className="text-black/30 ml-2"># {mediaId}</span>}
           </h1>
-          <p className="text-white/40 text-sm mt-1">Set triggers and automated responses for your comments.</p>
+          <p className="text-black/50 text-sm mt-1">Set triggers and automated responses for your comments.</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 text-white px-6 py-4 sm:py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 whitespace-nowrap"
+          className="bg-[#D4FF00] text-black px-6 py-4 sm:py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#c6f000] transition-all active:scale-95 whitespace-nowrap"
         >
           <Plus className="size-4" /> Create New Rule
         </button>

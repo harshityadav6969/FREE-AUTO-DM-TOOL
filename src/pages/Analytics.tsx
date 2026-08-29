@@ -45,11 +45,11 @@ export default function Analytics() {
     <div className="space-y-10">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-light text-white tracking-tight italic">Analytics</h1>
-          <p className="text-white/40 text-sm mt-1">Deep dive into your engagement and automation performance.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-black tracking-tight">Analytics</h1>
+          <p className="text-black/50 text-sm mt-1">Deep dive into your engagement and automation performance.</p>
         </div>
         <div className="flex gap-4">
-           <button className="bg-white/5 border border-white/5 px-4 sm:px-6 py-3 rounded-2xl flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-white/60 hover:border-white/20 transition-all w-full sm:w-auto">
+           <button className="bg-white border border-black/10 px-4 sm:px-6 py-3 rounded-2xl flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest text-black/70 hover:border-black/30 transition-all w-full sm:w-auto">
               Export Report
               <ChevronDown className="size-4" />
            </button>
