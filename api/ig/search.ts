@@ -1,12 +1,27 @@
-import { searchAccounts, json } from "../../src/server/igHelpers";
+export const config = { runtime: "edge" };
 
-export default function handler(req: any, res: any) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
+function normalizeUsername(raw: string) {
+  return String(raw || "")
+    .trim()
+    .replace(/^@+/, "")
+    .replace(/\/+$/, "")
+    .split(/[/?#\s]/)[0]
+    .toLowerCase();
+}
 
-  const accounts = searchAccounts(String(req.query?.q || ""));
-  return json(res, 200, { accounts });
+export default async function handler(request: Request) {
+  const q = normalizeUsername(new URL(request.url).searchParams.get("q") || "");
+  const accounts = q
+    ? [
+        {
+          username: q,
+          name: q,
+          followers: "—",
+          posts: "—",
+          profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(q)}&background=111827&color=fff`,
+        },
+      ]
+    : [];
+
+  return Response.json({ accounts });
 }

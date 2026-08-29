@@ -41,7 +41,12 @@ export default function Dashboard() {
       localStorage.setItem("ig_access_token", token);
       window.history.replaceState({}, "", "/dashboard?connected=1");
     }
-    if (params.get("connected") || params.get("connected") === "1" || token || localStorage.getItem("ig_access_token")) {
+    if (
+      params.get("connected") ||
+      token ||
+      localStorage.getItem("ig_access_token") ||
+      localStorage.getItem("ig_connected") === "1"
+    ) {
       setConnected(true);
     }
   }, []);

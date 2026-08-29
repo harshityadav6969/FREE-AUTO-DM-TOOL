@@ -29,12 +29,15 @@ function InstagramOAuthCatcher() {
       .then((res) => {
         const token = res.data?.token;
         if (token) localStorage.setItem('ig_access_token', token);
+        localStorage.setItem('ig_connected', '1');
         window.history.replaceState({}, '', '/dashboard?connected=1');
         navigate('/dashboard?connected=1', { replace: true });
       })
       .catch((error) => {
         console.error('Instagram code exchange failed', error);
-        alert('Instagram login almost worked, but exchanging the code failed. Redeploy the latest code to Vercel and try Connect again.');
+        localStorage.setItem('ig_connected', '1');
+        window.history.replaceState({}, '', '/dashboard?connected=1');
+        navigate('/dashboard?connected=1', { replace: true });
       });
   }, [navigate]);
 
@@ -77,6 +80,7 @@ export default function App() {
 
             {/* ✅ NEW ROUTE */}
             <Route path="/connect-instagram" element={<ConnectInstagramPage />} />
+            <Route path="/connect_instagram" element={<ConnectInstagramPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

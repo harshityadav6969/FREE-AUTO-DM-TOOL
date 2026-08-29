@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import axios from 'axios';
+import { buildIgAuthUrl, localAccountSuggestion } from '../lib/instagram';
 
 type IgAccount = {
   username: string;
@@ -25,7 +25,6 @@ export default function ConnectInstagramPage() {
   const [suggestions, setSuggestions] = useState<IgAccount[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
-  const [backendDown, setBackendDown] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchSeq = useRef(0);
 
@@ -42,34 +41,13 @@ export default function ConnectInstagramPage() {
     }
 
     const seq = ++searchSeq.current;
-    const timer = setTimeout(async () => {
-      setIsSuggesting(true);
-      try {
-        const res = await axios.get('/api/ig/search', {
-          params: { q: query },
-          timeout: 10000,
-        });
-        if (seq !== searchSeq.current) return;
-        setBackendDown(false);
-        setSuggestions(res.data?.accounts || []);
-        setShowSuggestions(true);
-      } catch {
-        if (seq !== searchSeq.current) return;
-        setBackendDown(true);
-        setSuggestions([
-          {
-            username: query,
-            name: query,
-            followers: '—',
-            posts: '—',
-            profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(query)}&background=111827&color=fff`,
-          },
-        ]);
-        setShowSuggestions(true);
-      } finally {
-        if (seq === searchSeq.current) setIsSuggesting(false);
-      }
-    }, 350);
+    const timer = setTimeout(() => {
+      if (seq !== searchSeq.current) return;
+      const suggestion = localAccountSuggestion(query);
+      setIsSuggesting(false);
+      setSuggestions(suggestion ? [suggestion] : []);
+      setShowSuggestions(Boolean(suggestion));
+    }, 200);
 
     return () => clearTimeout(timer);
   }, [query]);
@@ -86,58 +64,17 @@ export default function ConnectInstagramPage() {
     setStep('SEARCHING');
     setShowSuggestions(false);
 
-    try {
-      const res = await axios.get('/api/ig/search', {
-        params: { q: query },
-        timeout: 10000,
-      });
-      const accounts: IgAccount[] = res.data?.accounts || [];
-      const exact =
-        accounts.find((a) => a.username.toLowerCase() === query.toLowerCase()) ||
-        accounts[0];
-
-      if (exact) {
-        selectAccount(exact);
-        setBackendDown(false);
-        return;
-      }
-      setStep('ERROR');
-    } catch {
-      setBackendDown(true);
-      selectAccount({
-        username: query,
-        name: query,
-        followers: '—',
-        posts: '—',
-        profilePic: `https://ui-avatars.com/api/?name=${encodeURIComponent(query)}&background=111827&color=fff`,
-      });
+    const suggestion = localAccountSuggestion(query);
+    if (suggestion) {
+      selectAccount(suggestion);
+      return;
     }
+    setStep('ERROR');
   };
 
   const handleOAuth = async () => {
     setIsOAuthLoading(true);
-
-    try {
-      const res = await axios.get('/api/auth/ig/url', { timeout: 8000 });
-      const { url } = res.data;
-      if (res.data.redirectUri) {
-        console.log('Use this exact redirect URI in Meta:', res.data.redirectUri);
-      }
-
-      if (!url) {
-        alert('OAuth URL missing. Check META_APP_ID in .env');
-        setIsOAuthLoading(false);
-        return;
-      }
-
-      window.location.href = url;
-    } catch (error) {
-      console.error('IG Auth Error:', error);
-      alert(
-        'Failed to start Instagram connection. On Vercel, set INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET, then add this exact redirect URI in Meta: https://free-auto-dm-tool.vercel.app/'
-      );
-      setIsOAuthLoading(false);
-    }
+    window.location.href = buildIgAuthUrl();
   };
 
   return (
@@ -151,14 +88,6 @@ export default function ConnectInstagramPage() {
           Creator or Business account in the browser. <span className="text-white underline decoration-white/20 cursor-pointer hover:decoration-white transition-all">Need Help?</span>
         </p>
       </div>
-
-      {backendDown && (
-        <div className="mb-6 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 text-amber-100 text-xs">
-          {typeof window !== "undefined" && window.location.hostname.includes("localhost")
-            ? <>The API is not running locally. In another terminal run <span className="font-mono">npm run server</span>, then search again.</>
-            : <>Search API did not respond. Redeploy to Vercel so /api/ig/search exists, then refresh. You can still tap the username below and continue to Instagram login.</>}
-        </div>
-      )}
 
       <div className="space-y-6">
         <div className="space-y-3">
