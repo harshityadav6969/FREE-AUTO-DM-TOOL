@@ -9,7 +9,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
 
 type IgAccount = {
   username: string;
@@ -20,7 +19,6 @@ type IgAccount = {
 };
 
 export default function ConnectInstagramPage() {
-  const navigate = useNavigate();
   const [step, setStep] = useState<'IDLE' | 'SEARCHING' | 'FOUND' | 'ERROR'>('IDLE');
   const [username, setUsername] = useState('');
   const [foundAccount, setFoundAccount] = useState<IgAccount | null>(null);
@@ -132,27 +130,11 @@ export default function ConnectInstagramPage() {
         return;
       }
 
-      const authWindow = window.open(url, 'ig_auth', 'width=600,height=800');
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'IG_AUTH_SUCCESS') {
-          const { token } = event.data;
-          localStorage.setItem('ig_access_token', token);
-          if (foundAccount) {
-            localStorage.setItem('ig_username', foundAccount.username);
-          }
-          window.removeEventListener('message', handleMessage);
-          authWindow?.close();
-          setIsOAuthLoading(false);
-          navigate('/dashboard?connected=1');
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
+      window.location.href = url;
     } catch (error) {
       console.error('IG Auth Error:', error);
       alert(
-        'Failed to start Instagram connection. Keep this app running with npm run server (port 3000), and also run npm run dev. Meta must use this exact redirect URI: your APP_URL + /auth/ig/callback'
+        'Failed to start Instagram connection. On Vercel, set INSTAGRAM_APP_ID and INSTAGRAM_APP_SECRET, then add this exact redirect URI in Meta: https://free-auto-dm-tool.vercel.app/'
       );
       setIsOAuthLoading(false);
     }

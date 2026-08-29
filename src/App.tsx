@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -12,6 +13,33 @@ import Landing from './pages/Landing';
 
 // ✅ ADD THIS
 import ConnectInstagramPage from './pages/ConnectInstagramPage';
+
+function InstagramOAuthCatcher() {
+  const navigate = useNavigate();
+  const handled = React.useRef(false);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code || handled.current) return;
+    handled.current = true;
+
+    axios
+      .post('/api/auth/ig/exchange', { code })
+      .then((res) => {
+        const token = res.data?.token;
+        if (token) localStorage.setItem('ig_access_token', token);
+        window.history.replaceState({}, '', '/dashboard?connected=1');
+        navigate('/dashboard?connected=1', { replace: true });
+      })
+      .catch((error) => {
+        console.error('Instagram code exchange failed', error);
+        alert('Instagram login almost worked, but exchanging the code failed. Redeploy the latest code to Vercel and try Connect again.');
+      });
+  }, [navigate]);
+
+  return null;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -31,6 +59,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <InstagramOAuthCatcher />
         <Routes>
           <Route path="/" element={<Landing />} />
           

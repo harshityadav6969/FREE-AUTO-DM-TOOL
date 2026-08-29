@@ -48,7 +48,25 @@ export function getRedirectUri(req?: Request) {
   if (process.env.INSTAGRAM_REDIRECT_URI) {
     return process.env.INSTAGRAM_REDIRECT_URI;
   }
-  return `${getPublicOrigin(req)}/auth/ig/callback`;
+  const origin = getPublicOrigin(req);
+  // Meta for this live app is registered as the site root (trailing slash).
+  if (process.env.VERCEL || /vercel\.app$/i.test(origin)) {
+    return `${origin}/`;
+  }
+  return `${origin}/auth/ig/callback`;
+}
+
+function redirectCandidates(req?: Request) {
+  const origin = getPublicOrigin(req);
+  const configured = process.env.INSTAGRAM_REDIRECT_URI;
+  return [
+    configured,
+    `${origin}/`,
+    origin,
+    `${origin}/auth/ig/callback`,
+  ].filter((value, index, list): value is string =>
+    Boolean(value) && list.indexOf(value) === index
+  );
 }
 
 function isLocalHost(url: string) {
@@ -124,12 +142,71 @@ export function createApp() {
     return String(Math.round(n));
   }
 
+  async function exchangeInstagramCode(code: string, req: Request) {
+    if (!APP_ID || !APP_SECRET) {
+      throw new Error("Instagram app credentials missing");
+    }
+
+    let lastError: any = null;
+    let shortToken = "";
+
+    for (const redirectUri of redirectCandidates(req)) {
+      try {
+        const tokenRes = await axios.post(
+          "https://api.instagram.com/oauth/access_token",
+          new URLSearchParams({
+            client_id: APP_ID,
+            client_secret: APP_SECRET,
+            grant_type: "authorization_code",
+            redirect_uri: redirectUri,
+            code: String(code)
+          }),
+          { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+
+        shortToken =
+          tokenRes.data?.access_token ||
+          tokenRes.data?.data?.[0]?.access_token ||
+          "";
+
+        if (shortToken) break;
+      } catch (error: any) {
+        lastError = error;
+      }
+    }
+
+    if (!shortToken) {
+      throw lastError || new Error("No access token returned from Instagram");
+    }
+
+    let accessToken = shortToken;
+    try {
+      const longLived = await axios.get(
+        "https://graph.instagram.com/access_token",
+        {
+          params: {
+            grant_type: "ig_exchange_token",
+            client_secret: APP_SECRET,
+            access_token: shortToken
+          }
+        }
+      );
+      accessToken = longLived.data?.access_token || shortToken;
+    } catch (e: any) {
+      console.error(
+        "Long-lived token exchange skipped:",
+        e.response?.data || e.message
+      );
+    }
+
+    return accessToken;
+  }
+
   const igCallback = async (req: Request, res: Response) => {
     const { code, error, error_description } = req.query as Record<
       string,
       string
     >;
-    const redirectUri = getRedirectUri(req);
     const frontend = getFrontendOrigin(req);
 
     if (error) {
@@ -142,50 +219,8 @@ export function createApp() {
       return res.status(400).send("Code missing");
     }
 
-    if (!APP_ID || !APP_SECRET) {
-      return res.status(500).send("Instagram app credentials missing");
-    }
-
     try {
-      const tokenRes = await axios.post(
-        "https://api.instagram.com/oauth/access_token",
-        new URLSearchParams({
-          client_id: APP_ID,
-          client_secret: APP_SECRET,
-          grant_type: "authorization_code",
-          redirect_uri: redirectUri,
-          code: String(code)
-        }),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-      );
-
-      const shortToken =
-        tokenRes.data?.access_token ||
-        tokenRes.data?.data?.[0]?.access_token;
-
-      if (!shortToken) {
-        throw new Error("No access token returned from Instagram");
-      }
-
-      let accessToken = shortToken;
-      try {
-        const longLived = await axios.get(
-          "https://graph.instagram.com/access_token",
-          {
-            params: {
-              grant_type: "ig_exchange_token",
-              client_secret: APP_SECRET,
-              access_token: shortToken
-            }
-          }
-        );
-        accessToken = longLived.data?.access_token || shortToken;
-      } catch (e: any) {
-        console.error(
-          "Long-lived token exchange skipped:",
-          e.response?.data || e.message
-        );
-      }
+      const accessToken = await exchangeInstagramCode(String(code), req);
 
       const safeToken = JSON.stringify(accessToken);
       const safeFrontend = JSON.stringify(
@@ -376,6 +411,23 @@ export function createApp() {
 
   app.get("/auth/ig/callback", igCallback);
   app.get("/api/auth/ig/callback", igCallback);
+
+  app.post("/api/auth/ig/exchange", async (req, res) => {
+    const code = String(req.body?.code || req.query.code || "");
+    if (!code) {
+      return res.status(400).json({ error: "Code missing" });
+    }
+    try {
+      const token = await exchangeInstagramCode(code, req);
+      return res.json({ token });
+    } catch (error: any) {
+      console.error("IG exchange error:", error.response?.data || error.message);
+      return res.status(500).json({
+        error: "Failed to exchange Instagram code",
+        details: error.response?.data || error.message
+      });
+    }
+  });
 
   app.get("/api/ig/media", async (req, res) => {
     const accessToken = String(req.query.accessToken || "");
