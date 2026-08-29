@@ -28,9 +28,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
-      if (nextUser) {
+      setLoading(false);
+
+      if (!nextUser) return;
+      (async () => {
         try {
           const ref = doc(db, "users", nextUser.uid);
           const existing = await getDoc(ref);
@@ -47,8 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           console.error("Failed to create user profile", e);
         }
-      }
-      setLoading(false);
+      })();
     });
     return unsubscribe;
   }, []);
@@ -91,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signIn: loginWithGoogle, loginWithGoogle, logout }}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }

@@ -43,10 +43,15 @@ export async function persistIgAccount(uid: string, token: string) {
     isActive: true,
   };
 
-  await setDoc(doc(db, `users/${uid}/accounts/${instagramId}`), payload, { merge: true });
   localStorage.setItem("ig_access_token", token);
   localStorage.setItem("ig_connected", "1");
   localStorage.setItem("ig_username", payload.username);
+  localStorage.setItem("ig_user_id", instagramId);
+  try {
+    await setDoc(doc(db, `users/${uid}/accounts/${instagramId}`), payload, { merge: true });
+  } catch (error) {
+    console.error("Firestore account save skipped", error);
+  }
   return { id: instagramId, ...payload } as IgAccount;
 }
 
@@ -61,12 +66,37 @@ export function IgAccountsProvider({ children }: { children: React.ReactNode }) 
       setLoading(false);
       return;
     }
-    const unsub = onSnapshot(collection(db, `users/${user.uid}/accounts`), (snap) => {
-      setAccounts(
-        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<IgAccount, "id">) }))
-      );
-      setLoading(false);
-    });
+    const hydrateLocal = async () => {
+      const token = localStorage.getItem("ig_access_token");
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const saved = await persistIgAccount(user.uid, token);
+        if (saved) setAccounts([saved]);
+      } catch (error) {
+        console.error("Local Instagram restore failed", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const unsub = onSnapshot(
+      collection(db, `users/${user.uid}/accounts`),
+      (snap) => {
+        const next = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<IgAccount, "id">) }));
+        if (next.length) {
+          setAccounts(next);
+          setLoading(false);
+          return;
+        }
+        void hydrateLocal();
+      },
+      () => {
+        void hydrateLocal();
+      }
+    );
     return unsub;
   }, [user]);
 

@@ -3,6 +3,6 @@
   "rewrites": [
     { "source": "/auth/:path*", "destination": "/api/auth/:path*" },
     { "source": "/webhook", "destination": "/api/webhook" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|assets/).*)", "destination": "/index.html" }
   ]
 }

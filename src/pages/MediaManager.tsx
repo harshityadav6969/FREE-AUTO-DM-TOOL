@@ -22,8 +22,9 @@ import axios from 'axios';
 
 interface IGMEDIA {
   id: string;
-  media_type: 'IMAGE' | 'VIDEO' | 'REEL' | 'CAROUSEL_ALBUM' | 'VIDEO'; // IG API returns VIDEO for reels sometimes
+  media_type: 'IMAGE' | 'VIDEO' | 'REEL' | 'CAROUSEL_ALBUM' | 'VIDEO';
   media_url: string;
+  thumbnail_url?: string;
   caption: string;
   timestamp: string;
   permalink: string;
@@ -78,17 +79,21 @@ export default function MediaManager() {
     try {
       const res = await axios.get('/api/ig/media', {
         params: {
-          accessToken: account.pageAccessToken
+          accessToken: account.pageAccessToken,
+          igUserId: account.instagramId || "",
         }
       });
       
-      // Fetch rule counts for each media from Firestore
       const mediaList = res.data.data || [];
-      const mediaWithRules = await Promise.all(mediaList.map(async (item: any) => {
-        const rulesRef = collection(db, `users/${user?.uid}/accounts/${account.id}/rules`);
-        const q = query(rulesRef, where("mediaId", "==", item.id));
-        const snapshot = await getDocs(q);
-        return { ...item, ruleCount: snapshot.size };
+      const mediaWithRules = await Promise.all(mediaList.map(async (item: IGMEDIA) => {
+        try {
+          const rulesRef = collection(db, `users/${user?.uid}/accounts/${account.id}/rules`);
+          const q = query(rulesRef, where("mediaId", "==", item.id));
+          const snapshot = await getDocs(q);
+          return { ...item, ruleCount: snapshot.size, media_url: item.media_url };
+        } catch {
+          return { ...item, ruleCount: 0 };
+        }
       }));
 
       setMedia(mediaWithRules);
@@ -192,8 +197,8 @@ export default function MediaManager() {
             >
               <div className="aspect-square relative overflow-hidden bg-black/20">
                  <img 
-                   src={item.media_url} 
-                   alt="Post" 
+                   src={item.media_url || item.thumbnail_url} 
+                   alt="" 
                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                  />
                  <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl flex items-center gap-1.5 text-[10px] font-black text-white/90 uppercase tracking-widest border border-white/10">

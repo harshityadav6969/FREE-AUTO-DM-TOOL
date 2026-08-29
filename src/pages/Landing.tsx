@@ -11,7 +11,8 @@ export default function Landing() {
 
   React.useEffect(() => {
     const hasIgCode = new URLSearchParams(window.location.search).has('code');
-    if (user && !hasIgCode) {
+    if (hasIgCode) return;
+    if (user) {
       navigate('/dashboard');
     }
   }, [user, navigate]);
