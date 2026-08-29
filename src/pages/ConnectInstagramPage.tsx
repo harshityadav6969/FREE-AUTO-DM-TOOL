@@ -154,7 +154,9 @@ export default function ConnectInstagramPage() {
 
       {backendDown && (
         <div className="mb-6 p-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 text-amber-100 text-xs">
-          The API server on port 3000 is not reachable. Start it with <span className="font-mono">npm run server</span> in another terminal, then search again.
+          {typeof window !== "undefined" && window.location.hostname.includes("localhost")
+            ? <>The API is not running locally. In another terminal run <span className="font-mono">npm run server</span>, then search again.</>
+            : <>Search API did not respond. Redeploy to Vercel so /api/ig/search exists, then refresh. You can still tap the username below and continue to Instagram login.</>}
         </div>
       )}
 
