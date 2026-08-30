@@ -13,6 +13,15 @@ export function parseTokenPayload(data: unknown) {
   };
 }
 
+async function postForm(url: string, params: Record<string, string>, timeoutMs: number) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(params),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
+
 export async function exchangeForLongLivedToken(shortToken: string) {
   const appSecret =
     process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET || "";
@@ -26,14 +35,16 @@ export async function exchangeForLongLivedToken(shortToken: string) {
     return { ok: false as const, error: { error: "Short-lived token missing" } };
   }
 
-  const url =
-    `https://graph.instagram.com/access_token` +
-    `?grant_type=ig_exchange_token` +
-    `&client_secret=${encodeURIComponent(appSecret)}` +
-    `&access_token=${encodeURIComponent(shortToken)}`;
-
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const res = await postForm(
+      "https://graph.instagram.com/access_token",
+      {
+        grant_type: "ig_exchange_token",
+        client_secret: appSecret,
+        access_token: shortToken,
+      },
+      4000
+    );
     const data = await res.json().catch(() => ({}));
     console.error("[ig-token] long-lived Meta response", res.status, JSON.stringify(data));
     const parsed = parseTokenPayload(data);
@@ -55,12 +66,15 @@ export async function exchangeForLongLivedToken(shortToken: string) {
 }
 
 export async function refreshLongLivedToken(token: string) {
-  const url =
-    `https://graph.instagram.com/refresh_access_token` +
-    `?grant_type=ig_refresh_token` +
-    `&access_token=${encodeURIComponent(token)}`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const res = await postForm(
+      "https://graph.instagram.com/refresh_access_token",
+      {
+        grant_type: "ig_refresh_token",
+        access_token: token,
+      },
+      6000
+    );
     const data = await res.json().catch(() => ({}));
     const parsed = parseTokenPayload(data);
     if (!res.ok || !parsed.token) {

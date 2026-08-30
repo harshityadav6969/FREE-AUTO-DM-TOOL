@@ -180,15 +180,14 @@ export function createApp() {
     }
 
     try {
-      const longLived = await axios.get(
+      const longLived = await axios.post(
         "https://graph.instagram.com/access_token",
-        {
-          params: {
-            grant_type: "ig_exchange_token",
-            client_secret: APP_SECRET,
-            access_token: shortToken
-          }
-        }
+        new URLSearchParams({
+          grant_type: "ig_exchange_token",
+          client_secret: APP_SECRET,
+          access_token: shortToken
+        }),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
       console.error(
         "[ig-exchange local] long-lived Meta response",
