@@ -16,8 +16,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
+import { useIgAccounts } from '../lib/igAccounts';
 import { db } from '../lib/firebase';
-import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import axios from 'axios';
 
 interface IGMEDIA {
@@ -41,76 +42,98 @@ interface Account {
 
 export default function MediaManager() {
   const { user } = useAuth();
+  const { accounts: ctxAccounts, primary, loading: ctxLoading } = useIgAccounts();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [media, setMedia] = useState<IGMEDIA[]>([]);
   const [loading, setLoading] = useState(false);
-  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
-  // 1. Fetch connected accounts
   useEffect(() => {
-    if (!user) return;
-    const q = collection(db, `users/${user.uid}/accounts`);
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const activeAccounts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
-      setAccounts(activeAccounts);
-      if (activeAccounts.length > 0 && !selectedAccountId) {
-        setSelectedAccountId(activeAccounts[0].instagramId);
-      }
-      setAccountsLoading(false);
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  // 2. Fetch media when account changes
-  useEffect(() => {
-    if (selectedAccountId) {
-      fetchMedia();
+    const fromCtx = ctxAccounts.map((a) => ({
+      id: a.id,
+      instagramId: a.instagramId,
+      username: a.username,
+      pageAccessToken: a.pageAccessToken,
+      profilePicture: a.profilePicture || "",
+    }));
+    setAccounts(fromCtx);
+    if (fromCtx.length > 0 && !selectedAccountId) {
+      setSelectedAccountId(fromCtx[0].instagramId || fromCtx[0].id);
     }
-  }, [selectedAccountId]);
+  }, [ctxAccounts, selectedAccountId]);
 
   const fetchMedia = async () => {
-    const account = accounts.find(a => a.instagramId === selectedAccountId);
-    if (!account) return;
+    const account =
+      accounts.find((a) => a.instagramId === selectedAccountId || a.id === selectedAccountId) ||
+      (primary
+        ? {
+            id: primary.id,
+            instagramId: primary.instagramId,
+            username: primary.username,
+            pageAccessToken: primary.pageAccessToken,
+            profilePicture: primary.profilePicture || "",
+          }
+        : null);
+    if (!account?.pageAccessToken) return;
 
     setLoading(true);
+    setFetchError("");
     try {
-      const res = await axios.get('/api/ig/media', {
-        params: {
+      const res = await axios.post(
+        "/api/ig/media",
+        {
           accessToken: account.pageAccessToken,
           igUserId: account.instagramId || "",
-        }
-      });
-      
+        },
+        { timeout: 20000 }
+      );
+
       const mediaList = res.data.data || [];
-      const mediaWithRules = await Promise.all(mediaList.map(async (item: IGMEDIA) => {
-        try {
-          const rulesRef = collection(db, `users/${user?.uid}/accounts/${account.id}/rules`);
-          const q = query(rulesRef, where("mediaId", "==", item.id));
-          const snapshot = await getDocs(q);
-          return { ...item, ruleCount: snapshot.size, media_url: item.media_url };
-        } catch {
-          return { ...item, ruleCount: 0 };
-        }
-      }));
+      const mediaWithRules = await Promise.all(
+        mediaList.map(async (item: IGMEDIA) => {
+          try {
+            const rulesRef = collection(db, `users/${user?.uid}/accounts/${account.id}/rules`);
+            const q = query(rulesRef, where("mediaId", "==", item.id));
+            const snapshot = await getDocs(q);
+            return { ...item, ruleCount: snapshot.size };
+          } catch {
+            return { ...item, ruleCount: 0 };
+          }
+        })
+      );
 
       setMedia(mediaWithRules);
     } catch (e) {
-      console.error("Fetch Media Error:", e);
+      console.error("Fetch Media Error:", axios.isAxiosError(e) ? e.response?.data : e);
+      setFetchError(
+        axios.isAxiosError(e)
+          ? JSON.stringify(e.response?.data || e.message)
+          : "Could not load posts and reels."
+      );
+      setMedia([]);
     }
     setLoading(false);
   };
 
-  const filteredMedia = media.filter(m => 
-    (m.caption || '').toLowerCase().includes(search.toLowerCase()) || 
-    m.id.includes(search)
+  useEffect(() => {
+    if (selectedAccountId && accounts.length) {
+      void fetchMedia();
+    }
+  }, [selectedAccountId, accounts.length]);
+
+  const filteredMedia = media.filter(
+    (m) =>
+      (m.caption || "").toLowerCase().includes(search.toLowerCase()) || m.id.includes(search)
   );
 
-  const selectedAccount = accounts.find(a => a.instagramId === selectedAccountId);
+  const selectedAccount =
+    accounts.find((a) => a.instagramId === selectedAccountId || a.id === selectedAccountId) ||
+    accounts[0];
 
-  if (accountsLoading) {
+  if (ctxLoading) {
     return (
       <div className="h-96 flex items-center justify-center">
         <Loader2 className="size-8 text-indigo-500 animate-spin" />
@@ -156,9 +179,12 @@ export default function MediaManager() {
              </div>
              <div className="size-1 rounded-full bg-black/20" />
              <p className="text-black/40 text-[10px] font-bold uppercase tracking-widest">
-               {media.length} Posts Synced
+               {media.length} Posts & Reels Synced
              </p>
           </div>
+          {fetchError ? (
+            <p className="text-red-600 text-xs max-w-xl">{fetchError}</p>
+          ) : null}
         </div>
         
         <div className="flex items-center gap-4">
