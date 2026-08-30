@@ -1,5 +1,5 @@
-import { getAdmin } from "../_lib/firebaseAdmin";
-import { refreshLongLivedToken } from "../_lib/igTokens";
+import { getAdmin } from "../_lib/firebaseAdmin.js";
+import { refreshLongLivedToken } from "../_lib/igTokens.js";
 
 export const config = { runtime: "nodejs", maxDuration: 10 };
 

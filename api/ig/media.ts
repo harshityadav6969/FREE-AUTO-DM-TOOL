@@ -1,4 +1,4 @@
-import { isExpiredTokenError, refreshLongLivedToken } from "../_lib/igTokens";
+import { isExpiredTokenError, refreshLongLivedToken } from "../_lib/igTokens.js";
 
 export const config = { runtime: "nodejs", maxDuration: 10 };
 

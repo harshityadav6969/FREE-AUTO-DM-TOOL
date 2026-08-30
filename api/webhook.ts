@@ -1,4 +1,4 @@
-import { getAdmin } from "./_lib/firebaseAdmin";
+import { getAdmin } from "./_lib/firebaseAdmin.js";
 
 export const config = { runtime: "nodejs", maxDuration: 20 };
 
