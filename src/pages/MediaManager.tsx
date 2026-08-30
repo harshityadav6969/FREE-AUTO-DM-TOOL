@@ -92,6 +92,9 @@ export default function MediaManager() {
       );
 
       const mediaList = res.data.data || [];
+      if (res.data.error) {
+        setFetchError(typeof res.data.error === "string" ? res.data.error : JSON.stringify(res.data.details || res.data.error));
+      }
       const mediaWithRules = await Promise.all(
         mediaList.map(async (item: IGMEDIA) => {
           try {

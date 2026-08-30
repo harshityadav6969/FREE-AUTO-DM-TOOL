@@ -65,7 +65,20 @@ export async function persistIgAccount(uid: string, token: string, knownId = "")
   localStorage.setItem("ig_account", JSON.stringify(saved));
   try {
     await setDoc(doc(db, `users/${uid}/accounts/${instagramId}`), payload, { merge: true });
+    await setDoc(
+      doc(db, `igLookup/${instagramId}`),
+      {
+        uid,
+        accountId: instagramId,
+        pageAccessToken: token,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
     console.log("Profile write succeeded", { uid, instagramId, username: payload.username });
+    axios.post("/api/ig/subscribe", { accessToken: token, igUserId: instagramId }).catch((error) => {
+      console.error("IG webhook subscribe skipped", error);
+    });
   } catch (error) {
     console.error("Profile write failed", error);
     throw error;

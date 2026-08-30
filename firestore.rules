@@ -63,5 +63,13 @@ service cloud.firestore {
         }
       }
     }
+
+    match /igLookup/{igId} {
+      allow create, update: if isSignedIn()
+        && incoming().uid == request.auth.uid
+        && incoming().accountId is string
+        && incoming().pageAccessToken is string
+        && incoming().pageAccessToken.size() <= 4096;
+    }
   }
 }
