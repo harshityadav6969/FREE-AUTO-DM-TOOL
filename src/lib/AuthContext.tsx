@@ -11,6 +11,7 @@ import { auth } from './firebase';
 import { db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { UserProfile } from '../types';
+import { attachPendingIgToken } from './pendingIg';
 
 interface AuthContextType {
   user: User | null;
@@ -31,13 +32,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setLoading(false);
+      console.log("Google auth state changed, user:", nextUser?.uid ?? null);
 
       if (!nextUser) return;
-      const waitingOnInstagram =
-        typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).has("code");
-      if (waitingOnInstagram) return;
       (async () => {
+        try {
+          await attachPendingIgToken(nextUser.uid);
+        } catch (e) {
+          console.error("Pending IG attach after Google auth failed", e);
+        }
         try {
           const ref = doc(db, "users", nextUser.uid);
           const existing = await getDoc(ref);

@@ -2,7 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AuthProvider, useAuth } from './lib/AuthContext';
-import { IgAccountsProvider, persistIgAccount } from './lib/igAccounts';
+import { IgAccountsProvider } from './lib/igAccounts';
+import { attachPendingIgToken, savePendingIgToken, hasPendingIgToken } from './lib/pendingIg';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import MediaManager from './pages/MediaManager';
@@ -14,24 +15,40 @@ import Landing from './pages/Landing';
 import ConnectInstagramPage from './pages/ConnectInstagramPage';
 import Templates from './pages/Templates';
 
-const PENDING_TOKEN_KEY = "ig_token_pending";
 let rootExchangeStarted = false;
+
+function stripCodeFromUrl() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("code")) return;
+  url.searchParams.delete("code");
+  url.hash = "";
+  const next = `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams}` : ""}`;
+  window.history.replaceState({}, "", next || "/");
+}
 
 function IgRootCallback() {
   const navigate = useNavigate();
   const { user, loading, signIn } = useAuth();
   const [status, setStatus] = React.useState<"idle" | "exchanging" | "need_google" | "error">(() =>
-    new URLSearchParams(window.location.search).has("code") ? "exchanging" : "idle"
+    new URLSearchParams(window.location.search).has("code") || hasPendingIgToken()
+      ? hasPendingIgToken() && !new URLSearchParams(window.location.search).has("code")
+        ? "need_google"
+        : "exchanging"
+      : "idle"
   );
   const [error, setError] = React.useState("");
   const persisted = React.useRef(false);
 
   React.useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("code")?.split("#")[0].trim();
-    if (!code) return;
+    if (!code) {
+      if (hasPendingIgToken()) setStatus("need_google");
+      return;
+    }
 
     const lockKey = `ig_exchanged:${code}`;
     if (sessionStorage.getItem(lockKey) === "1" || rootExchangeStarted) {
+      stripCodeFromUrl();
       setStatus((s) => (s === "idle" ? "exchanging" : s));
       return;
     }
@@ -45,10 +62,11 @@ function IgRootCallback() {
         const token = res.data?.token || "";
         const instagramId = String(res.data?.instagramId || "");
         if (!token) throw new Error("No Instagram token");
-        sessionStorage.setItem(PENDING_TOKEN_KEY, JSON.stringify({ token, instagramId }));
-        window.history.replaceState({}, "", "/");
+        savePendingIgToken(token, instagramId);
+        stripCodeFromUrl();
         setStatus("need_google");
       } catch (err) {
+        stripCodeFromUrl();
         const data = axios.isAxiosError(err) ? err.response?.data : null;
         console.error("Instagram code exchange failed", data || err);
         const meta =
@@ -68,26 +86,22 @@ function IgRootCallback() {
 
   React.useEffect(() => {
     if (loading || persisted.current) return;
-    const raw = sessionStorage.getItem(PENDING_TOKEN_KEY);
-    if (!raw) return;
+    if (!hasPendingIgToken()) return;
     if (!user) {
       setStatus("need_google");
       return;
     }
 
     persisted.current = true;
-    const { token, instagramId } = JSON.parse(raw) as { token: string; instagramId?: string };
     (async () => {
       try {
-        await persistIgAccount(user.uid, token, instagramId || "");
+        await attachPendingIgToken(user.uid);
+        navigate("/dashboard?connected=1", { replace: true });
       } catch (persistError) {
-        console.error("Saved Instagram token locally; Firestore sync failed", persistError);
-        localStorage.setItem("ig_access_token", token);
-        localStorage.setItem("ig_connected", "1");
-        if (instagramId) localStorage.setItem("ig_user_id", instagramId);
+        console.error("Saved Instagram token locally; attach failed", persistError);
+        setError("Instagram token was received but could not be saved to your workspace.");
+        setStatus("error");
       }
-      sessionStorage.removeItem(PENDING_TOKEN_KEY);
-      navigate("/dashboard?connected=1", { replace: true });
     })();
   }, [user, loading, navigate, status]);
 

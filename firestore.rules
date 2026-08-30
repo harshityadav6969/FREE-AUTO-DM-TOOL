@@ -22,7 +22,10 @@ service cloud.firestore {
     function isValidAccount(data) {
       return data.keys().hasAll(['instagramId', 'pageAccessToken'])
         && data.instagramId is string && data.instagramId.size() <= 128
-        && data.pageAccessToken is string && data.pageAccessToken.size() <= 4096;
+        && data.pageAccessToken is string && data.pageAccessToken.size() <= 4096
+        && (!('username' in data) || data.username is string)
+        && (!('name' in data) || data.name is string)
+        && (!('isActive' in data) || data.isActive is bool);
     }
 
     function isValidRule(data) {

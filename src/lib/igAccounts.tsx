@@ -65,8 +65,10 @@ export async function persistIgAccount(uid: string, token: string, knownId = "")
   localStorage.setItem("ig_account", JSON.stringify(saved));
   try {
     await setDoc(doc(db, `users/${uid}/accounts/${instagramId}`), payload, { merge: true });
+    console.log("Profile write succeeded", { uid, instagramId, username: payload.username });
   } catch (error) {
-    console.error("Firestore account save skipped", error);
+    console.error("Profile write failed", error);
+    throw error;
   }
   return saved;
 }

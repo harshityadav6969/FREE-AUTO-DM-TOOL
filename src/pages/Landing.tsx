@@ -4,6 +4,7 @@ import { Instagram, Zap, Shield, Search, ArrowRight, CheckCircle2, MessageSquare
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
+import { hasPendingIgToken } from '../lib/pendingIg';
 
 export default function Landing() {
   const { signIn, user } = useAuth();
@@ -11,7 +12,7 @@ export default function Landing() {
 
   React.useEffect(() => {
     const hasIgCode = new URLSearchParams(window.location.search).has('code');
-    if (hasIgCode) return;
+    if (hasIgCode || hasPendingIgToken()) return;
     if (user) {
       navigate('/dashboard');
     }
