@@ -1,3 +1,5 @@
+import { isExpiredTokenError, refreshLongLivedToken } from "../_lib/igTokens";
+
 export const config = { runtime: "nodejs", maxDuration: 20 };
 
 async function parseInput(req: any) {
@@ -5,12 +7,14 @@ async function parseInput(req: any) {
     const url = new URL(req.url);
     let token = url.searchParams.get("accessToken") || "";
     let igUserId = url.searchParams.get("igUserId") || "";
+    let tokenExpiresAt = url.searchParams.get("tokenExpiresAt") || "";
     if (String(req.method || "GET").toUpperCase() === "POST") {
       const body = await req.json().catch(() => ({}));
       token = String(body.accessToken || token);
       igUserId = String(body.igUserId || igUserId);
+      tokenExpiresAt = String(body.tokenExpiresAt || tokenExpiresAt);
     }
-    return { token, igUserId, web: true as const };
+    return { token, igUserId, tokenExpiresAt, web: true as const };
   }
 
   if (String(req.method || "").toUpperCase() === "POST" && (req.body == null || req.body === "")) {
@@ -38,7 +42,13 @@ async function parseInput(req: any) {
       // ignore
     }
   }
-  return { token, igUserId, web: false as const };
+  return { token, igUserId, tokenExpiresAt: String(body.tokenExpiresAt || query.tokenExpiresAt || ""), web: false as const };
+}
+
+function tokenNeedsRefresh(expiresAt: string) {
+  const t = Date.parse(expiresAt);
+  if (!Number.isFinite(t) || t <= Date.now()) return false;
+  return t - Date.now() < 14 * 24 * 60 * 60 * 1000;
 }
 
 function normalize(item: Record<string, any>) {
@@ -79,6 +89,7 @@ async function fetchMedia(token: string, igUserId: string) {
         };
       }
       lastError = data;
+      if (isExpiredTokenError(data)) break;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
@@ -96,22 +107,50 @@ export default async function handler(req: any, res: any) {
       return new Response(null, { status: 204 });
     }
 
-    const { token, igUserId, web } = await parseInput(req);
+    const { token, igUserId, tokenExpiresAt, web } = await parseInput(req);
+    let workingToken = token;
+    let refreshedToken = "";
+    let refreshedExpiresIn = 0;
+
+    if (workingToken && tokenNeedsRefresh(tokenExpiresAt)) {
+      const refreshed = await refreshLongLivedToken(workingToken);
+      if (refreshed.ok) {
+        workingToken = refreshed.token;
+        refreshedToken = refreshed.token;
+        refreshedExpiresIn = refreshed.expiresIn;
+      }
+    }
+
     const payload = !token
       ? { error: "Missing access token", data: [] }
       : await (async () => {
-          const result = await fetchMedia(token, igUserId);
-          if (result.ok) return { data: result.items };
+          const result = await fetchMedia(workingToken, igUserId);
+          if (result.ok) {
+            return {
+              data: result.items,
+              ...(refreshedToken
+                ? { refreshedToken, expiresIn: refreshedExpiresIn }
+                : {}),
+            };
+          }
           console.log("[ig/media] graph error", result.lastError);
-          return { error: "Failed to fetch Instagram media", details: result.lastError, data: [] };
+          const expired = isExpiredTokenError(result.lastError);
+          return {
+            error: expired
+              ? "Instagram session expired. Reconnect Instagram to continue."
+              : "Failed to fetch Instagram media",
+            details: result.lastError,
+            expired,
+            code: expired ? 190 : undefined,
+            data: [],
+          };
         })();
 
-    const status = payload.error && !(payload as { data?: unknown[] }).data?.length ? 200 : 200;
     if (web || !(res && typeof res.status === "function")) {
-      return Response.json(payload, { status });
+      return Response.json(payload, { status: 200 });
     }
     res.setHeader("Access-Control-Allow-Origin", "*");
-    return res.status(status).json(payload);
+    return res.status(200).json(payload);
   } catch (error) {
     const payload = { error: String(error), data: [] };
     if (res && typeof res.status === "function") return res.status(200).json(payload);

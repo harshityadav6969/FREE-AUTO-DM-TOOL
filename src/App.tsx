@@ -58,11 +58,14 @@ function IgRootCallback() {
 
     (async () => {
       try {
-        const res = await axios.post("/api/ig-exchange", { code }, { timeout: 9000 });
+        const res = await axios.post("/api/ig-exchange", { code }, { timeout: 14000 });
         const token = res.data?.token || "";
         const instagramId = String(res.data?.instagramId || "");
         if (!token) throw new Error("No Instagram token");
-        savePendingIgToken(token, instagramId);
+        savePendingIgToken(token, instagramId, {
+          expiresIn: Number(res.data?.expiresIn || 0) || undefined,
+          tokenType: String(res.data?.tokenType || ""),
+        });
         stripCodeFromUrl();
         setStatus("need_google");
       } catch (err) {

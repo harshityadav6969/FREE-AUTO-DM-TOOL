@@ -25,7 +25,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 export default function Layout() {
   const { profile, logout } = useAuth();
-  const { primary, connected, loading } = useIgAccounts();
+  const { primary, connected, loading, disconnectAccount } = useIgAccounts();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [contentOpen, setContentOpen] = useState(true);
   const [dismissed, setDismissed] = useState(false);
@@ -141,6 +141,19 @@ export default function Layout() {
           <div className="h-1.5 rounded-full bg-black/10 overflow-hidden">
             <div className={cn("h-full bg-[#D4FF00]", connected ? "w-full" : "w-0")} />
           </div>
+          {connected ? (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm("Disconnect Instagram from this workspace?")) return;
+                await disconnectAccount(primary?.id);
+                navigate("/connect-instagram");
+              }}
+              className="mt-2 w-full text-[11px] font-bold text-black/45 hover:text-black"
+            >
+              Disconnect Instagram
+            </button>
+          ) : null}
         </div>
         <button className="w-full bg-[#D4FF00] text-black font-bold rounded-2xl py-2.5 text-sm flex items-center justify-center gap-2">
           <Crown className="size-4" /> Upgrade

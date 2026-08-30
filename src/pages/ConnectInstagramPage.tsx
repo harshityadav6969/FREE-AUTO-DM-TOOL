@@ -21,7 +21,8 @@ type IgAccount = {
 };
 
 export default function ConnectInstagramPage() {
-  const { primary } = useIgAccounts();
+  const { primary, connected, disconnectAccount } = useIgAccounts();
+  const [disconnecting, setDisconnecting] = useState(false);
   const [step, setStep] = useState<'IDLE' | 'SEARCHING' | 'FOUND' | 'ERROR'>('IDLE');
   const [username, setUsername] = useState('');
   const [foundAccount, setFoundAccount] = useState<IgAccount | null>(null);
@@ -102,6 +103,31 @@ export default function ConnectInstagramPage() {
 
   return (
     <div className="max-w-xl mx-auto py-12 px-6">
+      {connected ? (
+        <div className="mb-8 p-5 rounded-3xl border border-black/10 bg-white flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex-1">
+            <p className="text-sm font-bold text-black">Connected as @{primary?.username || "instagram"}</p>
+            <p className="text-xs text-black/50 mt-1">Disconnect to remove the saved token, then connect again for a fresh 60-day login.</p>
+          </div>
+          <button
+            type="button"
+            disabled={disconnecting}
+            onClick={async () => {
+              if (!window.confirm("Disconnect this Instagram account from InstaFlow?")) return;
+              setDisconnecting(true);
+              try {
+                await disconnectAccount(primary?.id);
+              } finally {
+                setDisconnecting(false);
+              }
+            }}
+            className="bg-black text-white font-bold px-4 py-2.5 rounded-xl text-sm"
+          >
+            {disconnecting ? "Disconnecting…" : "Disconnect Instagram"}
+          </button>
+        </div>
+      ) : null}
+
       <div className="text-center space-y-4 mb-12">
         <h1 className="text-4xl font-black text-black tracking-tight">
           Connect your Instagram <br /> Business account

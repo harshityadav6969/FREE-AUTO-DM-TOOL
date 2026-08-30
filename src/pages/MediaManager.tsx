@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { useIgAccounts } from '../lib/igAccounts';
+import { persistIgAccount, useIgAccounts } from '../lib/igAccounts';
 import { db } from '../lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import axios from 'axios';
@@ -37,6 +37,7 @@ interface Account {
   instagramId: string;
   username: string;
   pageAccessToken: string;
+  tokenExpiresAt?: string;
   profilePicture: string;
 }
 
@@ -57,6 +58,7 @@ export default function MediaManager() {
       instagramId: a.instagramId,
       username: a.username,
       pageAccessToken: a.pageAccessToken,
+      tokenExpiresAt: a.tokenExpiresAt,
       profilePicture: a.profilePicture || "",
     }));
     setAccounts(fromCtx);
@@ -74,6 +76,7 @@ export default function MediaManager() {
             instagramId: primary.instagramId,
             username: primary.username,
             pageAccessToken: primary.pageAccessToken,
+            tokenExpiresAt: primary.tokenExpiresAt,
             profilePicture: primary.profilePicture || "",
           }
         : null);
@@ -87,12 +90,22 @@ export default function MediaManager() {
         {
           accessToken: account.pageAccessToken,
           igUserId: account.instagramId || "",
+          tokenExpiresAt: account.tokenExpiresAt || "",
         },
         { timeout: 20000 }
       );
 
+      if (res.data.refreshedToken && user?.uid) {
+        await persistIgAccount(user.uid, res.data.refreshedToken, account.instagramId || account.id, {
+          expiresIn: Number(res.data.expiresIn || 0) || undefined,
+          tokenType: "long-lived",
+        });
+      }
+
       const mediaList = res.data.data || [];
-      if (res.data.error) {
+      if (res.data.expired || res.data.code === 190) {
+        setFetchError("expired");
+      } else if (res.data.error) {
         setFetchError(typeof res.data.error === "string" ? res.data.error : JSON.stringify(res.data.details || res.data.error));
       }
       const mediaWithRules = await Promise.all(
@@ -185,7 +198,20 @@ export default function MediaManager() {
                {media.length} Posts & Reels Synced
              </p>
           </div>
-          {fetchError ? (
+          {fetchError === "expired" ? (
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 max-w-xl">
+              <p className="text-red-600 text-xs">
+                Your Instagram login expired. Reconnect once to save a 60-day token.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/connect-instagram")}
+                className="bg-[#D4FF00] text-black px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap"
+              >
+                Reconnect Instagram
+              </button>
+            </div>
+          ) : fetchError ? (
             <p className="text-red-600 text-xs max-w-xl">{fetchError}</p>
           ) : null}
         </div>

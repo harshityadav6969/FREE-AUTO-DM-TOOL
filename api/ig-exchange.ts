@@ -1,19 +1,8 @@
-export const config = { runtime: "nodejs", maxDuration: 10 };
+import { exchangeForLongLivedToken, parseTokenPayload } from "../_lib/igTokens";
+
+export const config = { runtime: "nodejs", maxDuration: 15 };
 
 const CANONICAL_REDIRECT = "https://free-auto-dm-tool.vercel.app/";
-
-function parseExchange(data: unknown) {
-  const obj = (data || {}) as {
-    access_token?: string;
-    user_id?: string | number;
-    data?: Array<{ access_token?: string; user_id?: string | number }>;
-  };
-  const row = obj.data?.[0];
-  return {
-    token: String(obj.access_token || row?.access_token || ""),
-    instagramId: String(obj.user_id || row?.user_id || ""),
-  };
-}
 
 function resolveRedirectUri(hostHeader: string) {
   const host = String(hostHeader || "")
@@ -47,7 +36,7 @@ function readCodeFromNode(req: { body?: unknown; query?: Record<string, unknown>
     .trim();
 }
 
-async function exchange(code: string, redirectUri: string) {
+async function exchangeCode(code: string, redirectUri: string) {
   const appId =
     process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID || "997208969924157";
   const appSecret =
@@ -56,35 +45,39 @@ async function exchange(code: string, redirectUri: string) {
     return { ok: false as const, meta: { error: "INSTAGRAM_APP_SECRET is missing on Vercel" } };
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 6000);
+  const res = await fetch("https://api.instagram.com/oauth/access_token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: appId,
+      client_secret: appSecret,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri,
+      code,
+    }),
+    signal: AbortSignal.timeout(7000),
+  });
+  const raw = await res.text();
+  console.log("[ig-exchange] short-lived status", res.status, redirectUri);
+  let data: unknown = {};
   try {
-    const res = await fetch("https://api.instagram.com/oauth/access_token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: appId,
-        client_secret: appSecret,
-        grant_type: "authorization_code",
-        redirect_uri: redirectUri,
-        code,
-      }),
-      signal: controller.signal,
-    });
-    const raw = await res.text();
-    console.log("[ig-exchange] meta", res.status, redirectUri, raw.slice(0, 500));
-    let data: unknown = {};
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      data = { raw };
-    }
-    const parsed = parseExchange(data);
-    if (parsed.token) return { ok: true as const, parsed };
-    return { ok: false as const, meta: data };
-  } finally {
-    clearTimeout(timer);
+    data = JSON.parse(raw);
+  } catch {
+    data = { raw };
   }
+  const parsed = parseTokenPayload(data);
+  if (!parsed.token) return { ok: false as const, meta: data };
+
+  const longLived = await exchangeForLongLivedToken(parsed.token);
+  return {
+    ok: true as const,
+    parsed: {
+      token: longLived.token,
+      instagramId: parsed.instagramId,
+      expiresIn: longLived.expiresIn,
+      tokenType: longLived.longLived ? "long-lived" : "short-lived",
+    },
+  };
 }
 
 export default async function handler(req: any, res: any) {
@@ -112,11 +105,10 @@ export default async function handler(req: any, res: any) {
   const host = header(req, "x-forwarded-host") || header(req, "host") || "free-auto-dm-tool.vercel.app";
   const redirectUri = resolveRedirectUri(host);
   const code = readCodeFromNode(req);
-
   if (!code) return json(400, { error: "Code missing", redirectUri });
 
   try {
-    const result = await exchange(code, redirectUri);
+    const result = await exchangeCode(code, redirectUri);
     if (result.ok) return json(200, result.parsed);
     return json(400, {
       error: "Failed to exchange Instagram code",

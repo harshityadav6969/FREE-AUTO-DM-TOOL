@@ -5,10 +5,16 @@ export const PENDING_IG_TOKEN_KEY = "pendingIgToken";
 export type PendingIgToken = {
   token: string;
   instagramId: string;
+  expiresIn?: number;
+  tokenType?: string;
 };
 
-export function savePendingIgToken(token: string, instagramId: string) {
-  const payload: PendingIgToken = { token, instagramId };
+export function savePendingIgToken(
+  token: string,
+  instagramId: string,
+  extras: { expiresIn?: number; tokenType?: string } = {}
+) {
+  const payload: PendingIgToken = { token, instagramId, ...extras };
   sessionStorage.setItem(PENDING_IG_TOKEN_KEY, JSON.stringify(payload));
   console.log("IG token saved to pending storage");
 }
@@ -39,7 +45,10 @@ export async function attachPendingIgToken(uid: string) {
 
   console.log("Attempting to attach pending IG token to profile");
   try {
-    await persistIgAccount(uid, pending.token, pending.instagramId || "");
+    await persistIgAccount(uid, pending.token, pending.instagramId || "", {
+      expiresIn: pending.expiresIn,
+      tokenType: pending.tokenType,
+    });
     console.log("Profile write succeeded");
     clearPendingIgToken();
     return true;

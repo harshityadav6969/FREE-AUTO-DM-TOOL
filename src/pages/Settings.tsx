@@ -21,8 +21,9 @@ import { useNavigate } from 'react-router-dom';
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('ACCOUNTS');
   const { profile } = useAuth();
-  const { primary, connected } = useIgAccounts();
+  const { primary, connected, disconnectAccount } = useIgAccounts();
   const navigate = useNavigate();
+  const [disconnecting, setDisconnecting] = useState(false);
   const [templates, setTemplates] = useState({
     SUCCESS: ["Sent! Check your DM ✨", "Done! Open your inbox 🎁"],
     FOLLOW: ["Follow + DM again", "Check message requests"],
@@ -85,9 +86,34 @@ export default function Settings() {
                          <p className="text-sm font-black text-white">{connected ? `@${primary?.username}` : "No Instagram connected"}</p>
                          <p className="text-xs text-white/70">{connected ? `${primary?.followersCount?.toLocaleString() || 0} followers` : "Connect an Instagram Business account"}</p>
                       </div>
-                      <button onClick={() => navigate("/connect-instagram")} className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-[#D4FF00] rounded-xl">
-                        {connected ? "Reconnect" : "Connect"}
-                      </button>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => navigate("/connect-instagram")}
+                          className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-[#D4FF00] text-black rounded-xl"
+                        >
+                          {connected ? "Reconnect" : "Connect"}
+                        </button>
+                        {connected ? (
+                          <button
+                            type="button"
+                            disabled={disconnecting}
+                            onClick={async () => {
+                              if (!window.confirm("Disconnect Instagram from this workspace? Automations will pause until you connect again.")) return;
+                              setDisconnecting(true);
+                              try {
+                                await disconnectAccount(primary?.id);
+                                navigate("/connect-instagram");
+                              } finally {
+                                setDisconnecting(false);
+                              }
+                            }}
+                            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-white/10 text-white rounded-xl border border-white/15"
+                          >
+                            {disconnecting ? "Disconnecting…" : "Disconnect"}
+                          </button>
+                        ) : null}
+                      </div>
                    </div>
 
                    <div className="grid gap-6">

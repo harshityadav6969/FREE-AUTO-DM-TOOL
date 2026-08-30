@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { useAuth } from "./AuthContext";
 import axios from "axios";
@@ -10,6 +10,8 @@ export type IgAccount = {
   username: string;
   name?: string;
   pageAccessToken: string;
+  tokenExpiresAt?: string;
+  tokenType?: string;
   profilePicture?: string;
   followersCount?: number;
   mediaCount?: number;
@@ -22,11 +24,17 @@ type Ctx = {
   loading: boolean;
   connected: boolean;
   saveFromToken: (token: string) => Promise<IgAccount | null>;
+  disconnectAccount: (accountId?: string) => Promise<void>;
 };
 
 const IgContext = createContext<Ctx | undefined>(undefined);
 
-export async function persistIgAccount(uid: string, token: string, knownId = "") {
+export async function persistIgAccount(
+  uid: string,
+  token: string,
+  knownId = "",
+  extras: { expiresIn?: number; tokenType?: string } = {}
+) {
   let profile: Partial<IgAccount> = {
     instagramId: knownId,
     pageAccessToken: token,
@@ -46,6 +54,9 @@ export async function persistIgAccount(uid: string, token: string, knownId = "")
   const instagramId = String(profile.instagramId || knownId).replace(/[^a-zA-Z0-9_-]/g, "");
   if (!instagramId) throw new Error("No Instagram user id");
 
+  const tokenExpiresAt = extras.expiresIn
+    ? new Date(Date.now() + extras.expiresIn * 1000).toISOString()
+    : "";
   const payload = {
     instagramId,
     pageAccessToken: token,
@@ -55,6 +66,8 @@ export async function persistIgAccount(uid: string, token: string, knownId = "")
     followersCount: profile.followersCount || 0,
     mediaCount: profile.mediaCount || 0,
     isActive: true,
+    tokenType: extras.tokenType || "long-lived",
+    ...(tokenExpiresAt ? { tokenExpiresAt } : {}),
   };
 
   const saved = { id: instagramId, ...payload } as IgAccount;
@@ -72,6 +85,7 @@ export async function persistIgAccount(uid: string, token: string, knownId = "")
         accountId: instagramId,
         pageAccessToken: token,
         updatedAt: new Date().toISOString(),
+        ...(tokenExpiresAt ? { tokenExpiresAt } : {}),
       },
       { merge: true }
     );
@@ -84,6 +98,26 @@ export async function persistIgAccount(uid: string, token: string, knownId = "")
     throw error;
   }
   return saved;
+}
+
+export function clearLocalIgCache() {
+  localStorage.removeItem("ig_access_token");
+  localStorage.removeItem("ig_connected");
+  localStorage.removeItem("ig_username");
+  localStorage.removeItem("ig_user_id");
+  localStorage.removeItem("ig_account");
+}
+
+export async function disconnectIgAccount(uid: string, account: Pick<IgAccount, "id" | "instagramId">) {
+  const instagramId = String(account.instagramId || account.id || "").replace(/[^a-zA-Z0-9_-]/g, "");
+  clearLocalIgCache();
+  if (!instagramId) return;
+  await deleteDoc(doc(db, `users/${uid}/accounts/${instagramId}`));
+  try {
+    await deleteDoc(doc(db, `igLookup/${instagramId}`));
+  } catch (error) {
+    console.error("igLookup delete skipped", error);
+  }
 }
 
 export function IgAccountsProvider({ children }: { children: React.ReactNode }) {
@@ -100,11 +134,9 @@ export function IgAccountsProvider({ children }: { children: React.ReactNode }) 
     const hydrateLocal = () => {
       try {
         const cached = localStorage.getItem("ig_account");
-        if (cached) {
-          setAccounts([JSON.parse(cached) as IgAccount]);
-        }
+        setAccounts(cached ? [JSON.parse(cached) as IgAccount] : []);
       } catch {
-        // ignore
+        setAccounts([]);
       }
       setLoading(false);
     };
@@ -118,7 +150,13 @@ export function IgAccountsProvider({ children }: { children: React.ReactNode }) 
           setLoading(false);
           return;
         }
-        void hydrateLocal();
+        const cached = localStorage.getItem("ig_account");
+        if (cached) {
+          void hydrateLocal();
+          return;
+        }
+        setAccounts([]);
+        setLoading(false);
       },
       () => {
         void hydrateLocal();
@@ -132,11 +170,27 @@ export function IgAccountsProvider({ children }: { children: React.ReactNode }) 
     return persistIgAccount(user.uid, token);
   };
 
+  const disconnectAccount = async (accountId?: string) => {
+    if (!user) {
+      clearLocalIgCache();
+      setAccounts([]);
+      return;
+    }
+    const target = accounts.find((a) => a.id === accountId || a.instagramId === accountId) || accounts[0];
+    if (!target) {
+      clearLocalIgCache();
+      setAccounts([]);
+      return;
+    }
+    await disconnectIgAccount(user.uid, target);
+    setAccounts((prev) => prev.filter((a) => a.id !== target.id && a.instagramId !== target.instagramId));
+  };
+
   const primary = accounts[0] || null;
   const connected = accounts.some((a) => a.pageAccessToken && a.isActive !== false);
 
   return (
-    <IgContext.Provider value={{ accounts, primary, loading, connected, saveFromToken }}>
+    <IgContext.Provider value={{ accounts, primary, loading, connected, saveFromToken, disconnectAccount }}>
       {children}
     </IgContext.Provider>
   );

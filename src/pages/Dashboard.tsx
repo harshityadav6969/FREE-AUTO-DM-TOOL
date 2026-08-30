@@ -36,16 +36,33 @@ const templates = [
 ];
 
 export default function Dashboard() {
-  const { primary, connected } = useIgAccounts();
+  const { primary, connected, disconnectAccount } = useIgAccounts();
   const navigate = useNavigate();
 
   return (
     <div className="space-y-10">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          {connected ? `Welcome @${primary?.username}!` : "Create your first automation"}
-        </h1>
-        <p className="text-black/50 mt-1">Turn Instagram comments into DMs automatically.</p>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {connected ? `Welcome @${primary?.username}!` : "Create your first automation"}
+            </h1>
+            <p className="text-black/50 mt-1">Turn Instagram comments into DMs automatically.</p>
+          </div>
+          {connected ? (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm("Disconnect Instagram from this workspace?")) return;
+                await disconnectAccount(primary?.id);
+                navigate("/connect-instagram");
+              }}
+              className="text-sm font-bold text-black/50 hover:text-black underline underline-offset-4"
+            >
+              Disconnect Instagram
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <section>
