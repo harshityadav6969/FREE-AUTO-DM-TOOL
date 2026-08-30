@@ -179,7 +179,6 @@ export function createApp() {
       throw lastError || new Error("No access token returned from Instagram");
     }
 
-    let accessToken = shortToken;
     try {
       const longLived = await axios.get(
         "https://graph.instagram.com/access_token",
@@ -191,15 +190,26 @@ export function createApp() {
           }
         }
       );
-      accessToken = longLived.data?.access_token || shortToken;
+      console.error(
+        "[ig-exchange local] long-lived Meta response",
+        JSON.stringify(longLived.data)
+      );
+      const accessToken = longLived.data?.access_token;
+      if (!accessToken) {
+        throw Object.assign(new Error("Instagram connection incomplete, please reconnect"), {
+          response: { data: longLived.data }
+        });
+      }
+      return accessToken;
     } catch (e: any) {
       console.error(
-        "Long-lived token exchange skipped:",
-        e.response?.data || e.message
+        "Long-lived token exchange failed:",
+        JSON.stringify(e.response?.data ?? e.message ?? e)
       );
+      const err = new Error("Instagram connection incomplete, please reconnect");
+      (err as any).response = e.response || { data: e.response?.data || e.message };
+      throw err;
     }
-
-    return accessToken;
   }
 
   const igCallback = async (req: Request, res: Response) => {

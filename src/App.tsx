@@ -85,7 +85,7 @@ function IgRootCallback() {
             ? String((topError as { message?: string }).message)
             : "") ||
           (axios.isAxiosError(err) ? `Instagram login failed (${err.response?.status || err.code})` : "") ||
-          "Could not finish Instagram login. Click below to try again.";
+          "Instagram connection incomplete, please reconnect";
         setError(String(message));
         setStatus("error");
       }

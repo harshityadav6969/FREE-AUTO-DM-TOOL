@@ -16,8 +16,14 @@ export function parseTokenPayload(data: unknown) {
 export async function exchangeForLongLivedToken(shortToken: string) {
   const appSecret =
     process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET || "";
-  if (!appSecret || !shortToken) {
-    return { token: shortToken, expiresIn: 3600, longLived: false };
+  if (!appSecret) {
+    return {
+      ok: false as const,
+      error: { error: "INSTAGRAM_APP_SECRET is missing on Vercel" },
+    };
+  }
+  if (!shortToken) {
+    return { ok: false as const, error: { error: "Short-lived token missing" } };
   }
 
   const url =
@@ -29,20 +35,22 @@ export async function exchangeForLongLivedToken(shortToken: string) {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
     const data = await res.json().catch(() => ({}));
+    console.error("[ig-token] long-lived Meta response", res.status, JSON.stringify(data));
     const parsed = parseTokenPayload(data);
     if (!res.ok || !parsed.token) {
-      console.log("[ig-token] long-lived exchange failed", data);
-      return { token: shortToken, expiresIn: 3600, longLived: false, error: data };
+      return { ok: false as const, error: data };
     }
-    console.log("[ig-token] long-lived exchange ok, expires_in=", parsed.expiresIn);
     return {
+      ok: true as const,
       token: parsed.token,
       expiresIn: parsed.expiresIn || 5184000,
-      longLived: true,
     };
   } catch (error) {
-    console.log("[ig-token] long-lived exception", error instanceof Error ? error.message : error);
-    return { token: shortToken, expiresIn: 3600, longLived: false };
+    const payload = {
+      message: error instanceof Error ? error.message : String(error),
+    };
+    console.error("[ig-token] long-lived exception", JSON.stringify(payload));
+    return { ok: false as const, error: payload };
   }
 }
 
@@ -51,17 +59,24 @@ export async function refreshLongLivedToken(token: string) {
     `https://graph.instagram.com/refresh_access_token` +
     `?grant_type=ig_refresh_token` +
     `&access_token=${encodeURIComponent(token)}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-  const data = await res.json().catch(() => ({}));
-  const parsed = parseTokenPayload(data);
-  if (!res.ok || !parsed.token) {
-    return { ok: false as const, error: data };
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const data = await res.json().catch(() => ({}));
+    const parsed = parseTokenPayload(data);
+    if (!res.ok || !parsed.token) {
+      return { ok: false as const, error: data };
+    }
+    return {
+      ok: true as const,
+      token: parsed.token,
+      expiresIn: parsed.expiresIn || 5184000,
+    };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: { message: error instanceof Error ? error.message : String(error) },
+    };
   }
-  return {
-    ok: true as const,
-    token: parsed.token,
-    expiresIn: parsed.expiresIn || 5184000,
-  };
 }
 
 export function isExpiredTokenError(details: unknown) {

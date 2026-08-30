@@ -81,15 +81,14 @@ async function exchangeCode(code: string, redirectUri: string) {
   const parsed = parseTokenPayload(data);
   if (!parsed.token) return { ok: false as const, meta: data };
 
-  let longLived = {
-    token: parsed.token,
-    expiresIn: 3600,
-    longLived: false as boolean,
-  };
-  try {
-    longLived = await exchangeForLongLivedToken(parsed.token);
-  } catch (error) {
-    console.log("[ig-exchange] long-lived skipped", error instanceof Error ? error.message : error);
+  const longLived = await exchangeForLongLivedToken(parsed.token);
+  if (!longLived.ok) {
+    console.error("[ig-exchange] long-lived exchange failed", JSON.stringify(longLived.error));
+    return {
+      ok: false as const,
+      incomplete: true as const,
+      meta: longLived.error,
+    };
   }
 
   return {
@@ -98,7 +97,7 @@ async function exchangeCode(code: string, redirectUri: string) {
       token: longLived.token,
       instagramId: parsed.instagramId,
       expiresIn: longLived.expiresIn,
-      tokenType: longLived.longLived ? "long-lived" : "short-lived",
+      tokenType: "long-lived" as const,
     },
   };
 }
@@ -133,6 +132,13 @@ export default async function handler(req: any, res: any) {
 
     const result = await exchangeCode(code, redirectUri);
     if (result.ok) return json(200, result.parsed);
+    if ("incomplete" in result && result.incomplete) {
+      return json(400, {
+        error: "Instagram connection incomplete, please reconnect",
+        details: result.meta,
+        redirectUri,
+      });
+    }
     return json(400, {
       error: "Failed to exchange Instagram code",
       details: result.meta,
