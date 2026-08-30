@@ -14,91 +14,92 @@ import Landing from './pages/Landing';
 import ConnectInstagramPage from './pages/ConnectInstagramPage';
 import Templates from './pages/Templates';
 
-const IG_CODE_KEY = "ig_oauth_code";
-let igExchangeLock = "";
+const PENDING_TOKEN_KEY = "ig_token_pending";
+let rootExchangeStarted = false;
 
-function readIgOAuthCode() {
-  const fromUrl = new URLSearchParams(window.location.search).get("code");
-  if (fromUrl) {
-    const clean = fromUrl.split("#")[0].trim();
-    sessionStorage.setItem(IG_CODE_KEY, clean);
-    return clean;
-  }
-  return sessionStorage.getItem(IG_CODE_KEY) || "";
-}
-
-function InstagramOAuthCatcher() {
+function IgRootCallback() {
   const navigate = useNavigate();
   const { user, loading, signIn } = useAuth();
-  const [code, setCode] = React.useState(() => readIgOAuthCode());
+  const [status, setStatus] = React.useState<"idle" | "exchanging" | "need_google" | "error">(() =>
+    new URLSearchParams(window.location.search).has("code") ? "exchanging" : "idle"
+  );
   const [error, setError] = React.useState("");
-  const handled = React.useRef(false);
-
-  const dismiss = () => {
-    sessionStorage.removeItem(IG_CODE_KEY);
-    igExchangeLock = "";
-    setCode("");
-    window.location.replace("/connect-instagram");
-  };
+  const persisted = React.useRef(false);
 
   React.useEffect(() => {
-    if (!code || handled.current || loading) return;
-    if (!user) return;
-    if (igExchangeLock === code) return;
-    handled.current = true;
-    igExchangeLock = code;
+    const code = new URLSearchParams(window.location.search).get("code")?.split("#")[0].trim();
+    if (!code) return;
+    if (rootExchangeStarted) {
+      setStatus((s) => (s === "idle" ? "exchanging" : s));
+      return;
+    }
+    rootExchangeStarted = true;
+    setStatus("exchanging");
 
     (async () => {
       try {
-        const res = await axios.post(
-          "/api/ig-exchange",
-          { code },
-          { timeout: 9000 }
-        );
+        const res = await axios.post("/api/ig-exchange", { code }, { timeout: 9000 });
         const token = res.data?.token || "";
         const instagramId = String(res.data?.instagramId || "");
         if (!token) throw new Error("No Instagram token");
-        try {
-          await persistIgAccount(user.uid, token, instagramId);
-        } catch (persistError) {
-          console.error("Saved Instagram token locally; Firestore sync failed", persistError);
-          localStorage.setItem("ig_access_token", token);
-          localStorage.setItem("ig_connected", "1");
-          if (instagramId) localStorage.setItem("ig_user_id", instagramId);
-        }
-        sessionStorage.removeItem(IG_CODE_KEY);
-        setCode("");
-        navigate("/dashboard?connected=1", { replace: true });
+        sessionStorage.setItem(PENDING_TOKEN_KEY, JSON.stringify({ token, instagramId }));
+        window.history.replaceState({}, "", "/");
+        setStatus("need_google");
       } catch (err) {
         console.error("Instagram code exchange failed", err);
         setError("Could not finish Instagram login. Click below to try again.");
-        sessionStorage.removeItem(IG_CODE_KEY);
+        setStatus("error");
       }
     })();
-  }, [navigate, user, loading, code]);
+  }, []);
 
-  if (!code) return null;
+  React.useEffect(() => {
+    if (loading || persisted.current) return;
+    const raw = sessionStorage.getItem(PENDING_TOKEN_KEY);
+    if (!raw) return;
+    if (!user) {
+      setStatus("need_google");
+      return;
+    }
+
+    persisted.current = true;
+    const { token, instagramId } = JSON.parse(raw) as { token: string; instagramId?: string };
+    (async () => {
+      try {
+        await persistIgAccount(user.uid, token, instagramId || "");
+      } catch (persistError) {
+        console.error("Saved Instagram token locally; Firestore sync failed", persistError);
+        localStorage.setItem("ig_access_token", token);
+        localStorage.setItem("ig_connected", "1");
+        if (instagramId) localStorage.setItem("ig_user_id", instagramId);
+      }
+      sessionStorage.removeItem(PENDING_TOKEN_KEY);
+      navigate("/dashboard?connected=1", { replace: true });
+    })();
+  }, [user, loading, navigate, status]);
+
+  if (status === "idle") return null;
 
   return (
     <div className="fixed inset-0 z-[500] bg-[#F4F4F2] text-black flex items-center justify-center p-6">
       <div className="max-w-md w-full bg-white rounded-3xl border border-black/5 p-8 text-center shadow-sm">
-        {error ? (
+        {status === "error" ? (
           <>
             <h1 className="text-xl font-bold mb-2">Instagram connect failed</h1>
             <p className="text-sm text-black/55 mb-6">{error}</p>
             <button
               type="button"
-              onClick={dismiss}
+              onClick={() => window.location.replace("/connect-instagram")}
               className="w-full bg-[#D4FF00] text-black font-bold py-3 rounded-2xl"
             >
               Back to Connect Instagram
             </button>
           </>
-        ) : !user && !loading ? (
+        ) : status === "need_google" ? (
           <>
             <h1 className="text-xl font-bold mb-2">Sign in to finish connecting</h1>
             <p className="text-sm text-black/55 mb-6">
-              Instagram approved access. Sign in with Google so we can save the account to your workspace.
+              Instagram access is saved. Sign in with Google so we can attach it to your workspace.
             </p>
             <button
               type="button"
@@ -112,10 +113,10 @@ function InstagramOAuthCatcher() {
           <>
             <div className="mx-auto size-10 border-t-2 border-black rounded-full animate-spin mb-4" />
             <h1 className="text-xl font-bold mb-2">Connecting Instagram</h1>
-            <p className="text-sm text-black/55">Finishing Meta login and saving your account…</p>
+            <p className="text-sm text-black/55">Exchanging Meta login and opening your workspace…</p>
             <button
               type="button"
-              onClick={dismiss}
+              onClick={() => window.location.replace("/connect-instagram")}
               className="mt-6 text-sm text-black/50 underline"
             >
               Cancel
@@ -145,9 +146,16 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <InstagramOAuthCatcher />
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route
+            path="/"
+            element={
+              <>
+                <IgRootCallback />
+                <Landing />
+              </>
+            }
+          />
           
           <Route element={
             <ProtectedRoute>
