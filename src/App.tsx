@@ -58,7 +58,7 @@ function IgRootCallback() {
 
     (async () => {
       try {
-        const res = await axios.post("/api/ig-exchange", { code }, { timeout: 14000 });
+        const res = await axios.post("/api/ig-exchange", { code }, { timeout: 12000 });
         const token = res.data?.token || "";
         const instagramId = String(res.data?.instagramId || "");
         if (!token) throw new Error("No Instagram token");
@@ -72,14 +72,19 @@ function IgRootCallback() {
         stripCodeFromUrl();
         const data = axios.isAxiosError(err) ? err.response?.data : null;
         console.error("Instagram code exchange failed", data || err);
-        const meta =
-          (data as { details?: { error_message?: string; error_type?: string; error?: string } } | null)
-            ?.details;
+        const details = (data as { details?: unknown; error?: unknown } | null) || {};
+        const nested = details.details as { error_message?: string; error_type?: string; error?: unknown; message?: string } | undefined;
+        const topError = details.error;
         const message =
-          meta?.error_message ||
-          meta?.error_type ||
-          (typeof meta?.error === "string" ? meta.error : "") ||
-          (data as { error?: string } | null)?.error ||
+          nested?.error_message ||
+          nested?.error_type ||
+          nested?.message ||
+          (typeof nested?.error === "string" ? nested.error : "") ||
+          (typeof topError === "string" ? topError : "") ||
+          (topError && typeof topError === "object" && "message" in topError
+            ? String((topError as { message?: string }).message)
+            : "") ||
+          (axios.isAxiosError(err) ? `Instagram login failed (${err.response?.status || err.code})` : "") ||
           "Could not finish Instagram login. Click below to try again.";
         setError(String(message));
         setStatus("error");

@@ -1,6 +1,6 @@
 import { isExpiredTokenError, refreshLongLivedToken } from "../_lib/igTokens";
 
-export const config = { runtime: "nodejs", maxDuration: 20 };
+export const config = { runtime: "nodejs", maxDuration: 10 };
 
 async function parseInput(req: any) {
   if (typeof req?.json === "function") {

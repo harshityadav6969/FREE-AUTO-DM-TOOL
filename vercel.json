@@ -1,10 +1,10 @@
 {
   "framework": "vite",
   "functions": {
-    "api/ig-exchange.ts": { "maxDuration": 15 },
+    "api/ig-exchange.ts": { "maxDuration": 10 },
     "api/ig/me.ts": { "maxDuration": 10 },
-    "api/ig/media.ts": { "maxDuration": 20 },
-    "api/ig/refresh.ts": { "maxDuration": 60 }
+    "api/ig/media.ts": { "maxDuration": 10 },
+    "api/ig/refresh.ts": { "maxDuration": 10 }
   },
   "crons": [{ "path": "/api/ig/refresh", "schedule": "0 4 * * *" }],
   "rewrites": [

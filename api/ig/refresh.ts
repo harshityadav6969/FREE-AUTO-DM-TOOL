@@ -1,7 +1,7 @@
 import { getAdmin } from "../_lib/firebaseAdmin";
 import { refreshLongLivedToken } from "../_lib/igTokens";
 
-export const config = { runtime: "nodejs", maxDuration: 60 };
+export const config = { runtime: "nodejs", maxDuration: 10 };
 
 export default async function handler(req: any, res: any) {
   const json = (status: number, payload: unknown) => {

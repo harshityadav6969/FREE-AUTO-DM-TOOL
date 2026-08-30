@@ -1,6 +1,6 @@
-import { exchangeForLongLivedToken, parseTokenPayload } from "../_lib/igTokens";
+import { exchangeForLongLivedToken, parseTokenPayload } from "./_lib/igTokens";
 
-export const config = { runtime: "nodejs", maxDuration: 15 };
+export const config = { runtime: "nodejs", maxDuration: 10 };
 
 const CANONICAL_REDIRECT = "https://free-auto-dm-tool.vercel.app/";
 
@@ -19,21 +19,34 @@ function header(req: { headers?: Record<string, unknown> }, name: string) {
   return String(value || "");
 }
 
-function readCodeFromNode(req: { body?: unknown; query?: Record<string, unknown> }) {
-  const body = req.body as { code?: string } | string | undefined;
-  const fromBody =
-    typeof body === "string"
-      ? (() => {
-          try {
-            return JSON.parse(body).code;
-          } catch {
-            return new URLSearchParams(body).get("code");
-          }
-        })()
-      : body?.code;
-  return String(fromBody || req.query?.code || "")
-    .split("#")[0]
-    .trim();
+function codeFromUnknown(value: unknown) {
+  if (!value) return "";
+  if (typeof value === "string") {
+    try {
+      return String(JSON.parse(value).code || "");
+    } catch {
+      return String(new URLSearchParams(value).get("code") || "");
+    }
+  }
+  if (typeof value === "object" && value && "code" in value) {
+    return String((value as { code?: string }).code || "");
+  }
+  return "";
+}
+
+async function readCode(req: any) {
+  let fromBody = codeFromUnknown(req.body);
+  if (!fromBody && req.query) fromBody = String(req.query.code || "");
+  if (!fromBody && typeof req.json === "function") {
+    const json = await req.json().catch(() => ({}));
+    fromBody = codeFromUnknown(json);
+  }
+  if (!fromBody && req.readable && req.body == null) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    fromBody = codeFromUnknown(Buffer.concat(chunks).toString("utf8"));
+  }
+  return fromBody.split("#")[0].trim();
 }
 
 async function exchangeCode(code: string, redirectUri: string) {
@@ -55,7 +68,7 @@ async function exchangeCode(code: string, redirectUri: string) {
       redirect_uri: redirectUri,
       code,
     }),
-    signal: AbortSignal.timeout(7000),
+    signal: AbortSignal.timeout(5000),
   });
   const raw = await res.text();
   console.log("[ig-exchange] short-lived status", res.status, redirectUri);
@@ -68,7 +81,17 @@ async function exchangeCode(code: string, redirectUri: string) {
   const parsed = parseTokenPayload(data);
   if (!parsed.token) return { ok: false as const, meta: data };
 
-  const longLived = await exchangeForLongLivedToken(parsed.token);
+  let longLived = {
+    token: parsed.token,
+    expiresIn: 3600,
+    longLived: false as boolean,
+  };
+  try {
+    longLived = await exchangeForLongLivedToken(parsed.token);
+  } catch (error) {
+    console.log("[ig-exchange] long-lived skipped", error instanceof Error ? error.message : error);
+  }
+
   return {
     ok: true as const,
     parsed: {
@@ -92,22 +115,22 @@ export default async function handler(req: any, res: any) {
     });
   };
 
-  if (req?.method === "OPTIONS") {
-    if (res && typeof res.status === "function") {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-      return res.status(204).end();
-    }
-    return new Response(null, { status: 204 });
-  }
-
-  const host = header(req, "x-forwarded-host") || header(req, "host") || "free-auto-dm-tool.vercel.app";
-  const redirectUri = resolveRedirectUri(host);
-  const code = readCodeFromNode(req);
-  if (!code) return json(400, { error: "Code missing", redirectUri });
-
   try {
+    if (req?.method === "OPTIONS") {
+      if (res && typeof res.status === "function") {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+        return res.status(204).end();
+      }
+      return new Response(null, { status: 204 });
+    }
+
+    const host = header(req, "x-forwarded-host") || header(req, "host") || "free-auto-dm-tool.vercel.app";
+    const redirectUri = resolveRedirectUri(host);
+    const code = await readCode(req);
+    if (!code) return json(400, { error: "Code missing", redirectUri });
+
     const result = await exchangeCode(code, redirectUri);
     if (result.ok) return json(200, result.parsed);
     return json(400, {
@@ -120,7 +143,6 @@ export default async function handler(req: any, res: any) {
     return json(400, {
       error: "Failed to exchange Instagram code",
       details: error instanceof Error ? error.message : String(error),
-      redirectUri,
     });
   }
 }

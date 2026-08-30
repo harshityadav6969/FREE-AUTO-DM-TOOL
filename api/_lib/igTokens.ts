@@ -26,19 +26,24 @@ export async function exchangeForLongLivedToken(shortToken: string) {
     `&client_secret=${encodeURIComponent(appSecret)}` +
     `&access_token=${encodeURIComponent(shortToken)}`;
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-  const data = await res.json().catch(() => ({}));
-  const parsed = parseTokenPayload(data);
-  if (!res.ok || !parsed.token) {
-    console.log("[ig-token] long-lived exchange failed", data);
-    return { token: shortToken, expiresIn: 3600, longLived: false, error: data };
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const data = await res.json().catch(() => ({}));
+    const parsed = parseTokenPayload(data);
+    if (!res.ok || !parsed.token) {
+      console.log("[ig-token] long-lived exchange failed", data);
+      return { token: shortToken, expiresIn: 3600, longLived: false, error: data };
+    }
+    console.log("[ig-token] long-lived exchange ok, expires_in=", parsed.expiresIn);
+    return {
+      token: parsed.token,
+      expiresIn: parsed.expiresIn || 5184000,
+      longLived: true,
+    };
+  } catch (error) {
+    console.log("[ig-token] long-lived exception", error instanceof Error ? error.message : error);
+    return { token: shortToken, expiresIn: 3600, longLived: false };
   }
-  console.log("[ig-token] long-lived exchange ok, expires_in=", parsed.expiresIn);
-  return {
-    token: parsed.token,
-    expiresIn: parsed.expiresIn || 5184000,
-    longLived: true,
-  };
 }
 
 export async function refreshLongLivedToken(token: string) {
