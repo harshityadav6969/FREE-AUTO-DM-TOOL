@@ -33,6 +33,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
 
       if (!nextUser) return;
+      const waitingOnInstagram =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).has("code");
+      if (waitingOnInstagram) return;
       (async () => {
         try {
           const ref = doc(db, "users", nextUser.uid);

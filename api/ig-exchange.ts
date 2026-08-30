@@ -1,5 +1,7 @@
 export const config = { runtime: "nodejs", maxDuration: 10 };
 
+const CANONICAL_REDIRECT = "https://free-auto-dm-tool.vercel.app/";
+
 function parseExchange(data: unknown) {
   const obj = (data || {}) as {
     access_token?: string;
@@ -13,16 +15,22 @@ function parseExchange(data: unknown) {
   };
 }
 
-function redirectUri(req: { headers?: Record<string, string | string[] | undefined> }) {
-  if (process.env.INSTAGRAM_REDIRECT_URI) return process.env.INSTAGRAM_REDIRECT_URI;
-  const host = String(req.headers?.["x-forwarded-host"] || req.headers?.host || "free-auto-dm-tool.vercel.app")
+function resolveRedirectUri(hostHeader: string) {
+  const host = String(hostHeader || "")
     .split(",")[0]
-    .replace(/\/$/, "");
-  const proto = String(req.headers?.["x-forwarded-proto"] || "https").split(",")[0];
-  return `${proto}://${host}/`;
+    .replace(/\/$/, "")
+    .toLowerCase();
+  if (host.includes("free-auto-dm-tool.vercel.app")) return CANONICAL_REDIRECT;
+  return process.env.INSTAGRAM_REDIRECT_URI || CANONICAL_REDIRECT;
 }
 
-function readCode(req: { body?: unknown; query?: Record<string, unknown> }) {
+function header(req: { headers?: Record<string, unknown> }, name: string) {
+  const value = req.headers?.[name] ?? req.headers?.[name.toLowerCase()];
+  if (Array.isArray(value)) return String(value[0] || "");
+  return String(value || "");
+}
+
+function readCodeFromNode(req: { body?: unknown; query?: Record<string, unknown> }) {
   const body = req.body as { code?: string } | string | undefined;
   const fromBody =
     typeof body === "string"
@@ -39,12 +47,14 @@ function readCode(req: { body?: unknown; query?: Record<string, unknown> }) {
     .trim();
 }
 
-async function exchange(code: string, uri: string) {
+async function exchange(code: string, redirectUri: string) {
   const appId =
     process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID || "997208969924157";
   const appSecret =
     process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET || "";
-  if (!appSecret) throw new Error("INSTAGRAM_APP_SECRET is missing on Vercel");
+  if (!appSecret) {
+    return { ok: false as const, meta: { error: "INSTAGRAM_APP_SECRET is missing on Vercel" } };
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
@@ -56,12 +66,13 @@ async function exchange(code: string, uri: string) {
         client_id: appId,
         client_secret: appSecret,
         grant_type: "authorization_code",
-        redirect_uri: uri,
+        redirect_uri: redirectUri,
         code,
       }),
       signal: controller.signal,
     });
     const raw = await res.text();
+    console.log("[ig-exchange] meta", res.status, redirectUri, raw.slice(0, 500));
     let data: unknown = {};
     try {
       data = JSON.parse(raw);
@@ -69,36 +80,55 @@ async function exchange(code: string, uri: string) {
       data = { raw };
     }
     const parsed = parseExchange(data);
-    if (!parsed.token) throw data;
-    return parsed;
+    if (parsed.token) return { ok: true as const, parsed };
+    return { ok: false as const, meta: data };
   } finally {
     clearTimeout(timer);
   }
 }
 
 export default async function handler(req: any, res: any) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(204).end();
+  const json = (status: number, payload: unknown) => {
+    if (res && typeof res.status === "function") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      return res.status(status).json(payload);
+    }
+    return Response.json(payload, {
+      status,
+      headers: { "Access-Control-Allow-Origin": "*" },
+    });
+  };
 
-  const code = readCode(req);
-  if (!code) return res.status(400).json({ error: "Code missing" });
+  if (req?.method === "OPTIONS") {
+    if (res && typeof res.status === "function") {
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "POST,GET,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      return res.status(204).end();
+    }
+    return new Response(null, { status: 204 });
+  }
 
-  const uri = redirectUri(req);
+  const host = header(req, "x-forwarded-host") || header(req, "host") || "free-auto-dm-tool.vercel.app";
+  const redirectUri = resolveRedirectUri(host);
+  const code = readCodeFromNode(req);
+
+  if (!code) return json(400, { error: "Code missing", redirectUri });
+
   try {
-    const result = await Promise.race([
-      exchange(code, uri),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Instagram token exchange timed out")), 6500)
-      ),
-    ]);
-    return res.status(200).json(result);
-  } catch (error) {
-    return res.status(400).json({
+    const result = await exchange(code, redirectUri);
+    if (result.ok) return json(200, result.parsed);
+    return json(400, {
       error: "Failed to exchange Instagram code",
-      details: error instanceof Error ? error.message : error,
-      redirectUri: uri,
+      details: result.meta,
+      redirectUri,
+    });
+  } catch (error) {
+    console.log("[ig-exchange] exception", error instanceof Error ? error.message : error);
+    return json(400, {
+      error: "Failed to exchange Instagram code",
+      details: error instanceof Error ? error.message : String(error),
+      redirectUri,
     });
   }
 }

@@ -29,11 +29,14 @@ function IgRootCallback() {
   React.useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("code")?.split("#")[0].trim();
     if (!code) return;
-    if (rootExchangeStarted) {
+
+    const lockKey = `ig_exchanged:${code}`;
+    if (sessionStorage.getItem(lockKey) === "1" || rootExchangeStarted) {
       setStatus((s) => (s === "idle" ? "exchanging" : s));
       return;
     }
     rootExchangeStarted = true;
+    sessionStorage.setItem(lockKey, "1");
     setStatus("exchanging");
 
     (async () => {
@@ -46,8 +49,18 @@ function IgRootCallback() {
         window.history.replaceState({}, "", "/");
         setStatus("need_google");
       } catch (err) {
-        console.error("Instagram code exchange failed", err);
-        setError("Could not finish Instagram login. Click below to try again.");
+        const data = axios.isAxiosError(err) ? err.response?.data : null;
+        console.error("Instagram code exchange failed", data || err);
+        const meta =
+          (data as { details?: { error_message?: string; error_type?: string; error?: string } } | null)
+            ?.details;
+        const message =
+          meta?.error_message ||
+          meta?.error_type ||
+          (typeof meta?.error === "string" ? meta.error : "") ||
+          (data as { error?: string } | null)?.error ||
+          "Could not finish Instagram login. Click below to try again.";
+        setError(String(message));
         setStatus("error");
       }
     })();
