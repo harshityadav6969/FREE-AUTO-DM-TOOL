@@ -1,6 +1,6 @@
 import { isExpiredTokenError, refreshLongLivedToken } from "../_lib/igTokens.js";
 
-export const config = { runtime: "nodejs", maxDuration: 10 };
+export const config = { runtime: "nodejs", maxDuration: 20 };
 
 async function parseInput(req: any) {
   if (typeof req?.json === "function") {
@@ -8,13 +8,17 @@ async function parseInput(req: any) {
     let token = url.searchParams.get("accessToken") || "";
     let igUserId = url.searchParams.get("igUserId") || "";
     let tokenExpiresAt = url.searchParams.get("tokenExpiresAt") || "";
+    let after = url.searchParams.get("after") || "";
+    let limit = url.searchParams.get("limit") || "";
     if (String(req.method || "GET").toUpperCase() === "POST") {
       const body = await req.json().catch(() => ({}));
       token = String(body.accessToken || token);
       igUserId = String(body.igUserId || igUserId);
       tokenExpiresAt = String(body.tokenExpiresAt || tokenExpiresAt);
+      after = String(body.after || after);
+      limit = String(body.limit || limit);
     }
-    return { token, igUserId, tokenExpiresAt, web: true as const };
+    return { token, igUserId, tokenExpiresAt, after, limit, web: true as const };
   }
 
   if (String(req.method || "").toUpperCase() === "POST" && (req.body == null || req.body === "")) {
@@ -31,6 +35,8 @@ async function parseInput(req: any) {
   const query = req.query || {};
   let token = String(body.accessToken || query.accessToken || "");
   let igUserId = String(body.igUserId || query.igUserId || "");
+  let after = String(body.after || query.after || "");
+  let limit = String(body.limit || query.limit || "");
   if (!token && req.url) {
     try {
       const parsed = String(req.url).startsWith("http")
@@ -38,11 +44,20 @@ async function parseInput(req: any) {
         : new URL(String(req.url), "https://free-auto-dm-tool.vercel.app");
       token = parsed.searchParams.get("accessToken") || token;
       igUserId = parsed.searchParams.get("igUserId") || igUserId;
+      after = parsed.searchParams.get("after") || after;
+      limit = parsed.searchParams.get("limit") || limit;
     } catch {
       // ignore
     }
   }
-  return { token, igUserId, tokenExpiresAt: String(body.tokenExpiresAt || query.tokenExpiresAt || ""), web: false as const };
+  return {
+    token,
+    igUserId,
+    tokenExpiresAt: String(body.tokenExpiresAt || query.tokenExpiresAt || ""),
+    after,
+    limit,
+    web: false as const,
+  };
 }
 
 function tokenNeedsRefresh(expiresAt: string) {
@@ -54,38 +69,61 @@ function tokenNeedsRefresh(expiresAt: string) {
 function normalize(item: Record<string, any>) {
   const child = item.children?.data?.[0] || {};
   const mediaUrl = item.media_url || item.thumbnail_url || child.media_url || child.thumbnail_url || "";
-  const isVideo = item.media_type === "VIDEO" || String(item.permalink || "").includes("/reel/");
+  const productType = String(item.media_product_type || "").toUpperCase();
+  const rawType = String(item.media_type || "").toUpperCase();
+  const isReel = productType === "REELS" || String(item.permalink || "").includes("/reel/");
+  const kind = isReel
+    ? "REEL"
+    : rawType === "CAROUSEL_ALBUM"
+      ? "CAROUSEL"
+      : rawType === "VIDEO"
+        ? "VIDEO"
+        : "POST";
   return {
     id: String(item.id || ""),
     caption: item.caption || "",
-    media_type: isVideo ? "VIDEO" : item.media_type || "IMAGE",
+    media_type: rawType,
+    product_type: productType,
+    kind,
     media_url: mediaUrl,
     thumbnail_url: item.thumbnail_url || child.thumbnail_url || mediaUrl,
     permalink: item.permalink || "",
     timestamp: item.timestamp || "",
+    like_count: Number(item.like_count) || 0,
+    comments_count: Number(item.comments_count) || 0,
   };
 }
 
-async function fetchMedia(token: string, igUserId: string) {
+async function fetchMedia(token: string, igUserId: string, after: string, limit: string) {
   const endpoints = [
     "https://graph.instagram.com/v21.0/me/media",
     "https://graph.instagram.com/me/media",
     igUserId ? `https://graph.instagram.com/v21.0/${encodeURIComponent(igUserId)}/media` : "",
   ].filter(Boolean);
-  const fields = "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp";
+  const fields =
+    "id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count";
+  const pageLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
 
   let lastError: unknown = null;
   for (const endpoint of endpoints) {
     try {
-      const res = await fetch(
-        `${endpoint}?fields=${fields}&limit=50&access_token=${encodeURIComponent(token)}`,
-        { signal: AbortSignal.timeout(12000) }
-      );
+      const params = new URLSearchParams({
+        fields,
+        limit: String(pageLimit),
+        access_token: token,
+      });
+      if (after) params.set("after", after);
+      const res = await fetch(`${endpoint}?${params.toString()}`, {
+        signal: AbortSignal.timeout(18000),
+      });
       const data = await res.json().catch(() => ({}));
       if (res.ok && Array.isArray((data as { data?: unknown[] }).data)) {
+        const paging = (data as { paging?: { cursors?: { after?: string; before?: string } } }).paging;
         return {
           ok: true as const,
           items: ((data as { data: Record<string, any>[] }).data).map(normalize),
+          nextCursor: paging?.cursors?.after || "",
+          hasMore: Boolean(paging?.cursors?.after) || Boolean((data as { paging?: { next?: string } }).paging?.next),
         };
       }
       lastError = data;
@@ -107,7 +145,7 @@ export default async function handler(req: any, res: any) {
       return new Response(null, { status: 204 });
     }
 
-    const { token, igUserId, tokenExpiresAt, web } = await parseInput(req);
+    const { token, igUserId, tokenExpiresAt, after, limit, web } = await parseInput(req);
     let workingToken = token;
     let refreshedToken = "";
     let refreshedExpiresIn = 0;
@@ -124,10 +162,12 @@ export default async function handler(req: any, res: any) {
     const payload = !token
       ? { error: "Missing access token", data: [] }
       : await (async () => {
-          const result = await fetchMedia(workingToken, igUserId);
+          const result = await fetchMedia(workingToken, igUserId, after, limit);
           if (result.ok) {
             return {
               data: result.items,
+              nextCursor: result.nextCursor,
+              hasMore: result.hasMore,
               ...(refreshedToken
                 ? { refreshedToken, expiresIn: refreshedExpiresIn }
                 : {}),
@@ -143,6 +183,8 @@ export default async function handler(req: any, res: any) {
             expired,
             code: expired ? 190 : undefined,
             data: [],
+            hasMore: false,
+            nextCursor: "",
           };
         })();
 

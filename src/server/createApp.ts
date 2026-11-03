@@ -438,31 +438,94 @@ export function createApp() {
     }
   });
 
+  async function handleIgMedia(accessToken: string, igUserId: string, after: string, limit: string) {
+    const fields =
+      "id,caption,media_type,media_product_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count";
+    const params: Record<string, string> = {
+      fields,
+      limit: String(Math.min(Math.max(Number(limit) || 25, 1), 100)),
+      access_token: accessToken,
+    };
+    if (after) params.after = after;
+    const endpoints = [
+      "https://graph.instagram.com/v21.0/me/media",
+      igUserId ? `https://graph.instagram.com/v21.0/${encodeURIComponent(igUserId)}/media` : "",
+    ].filter(Boolean);
+
+    for (const endpoint of endpoints) {
+      const response = await axios.get(endpoint, {
+        params,
+        timeout: 18000,
+        validateStatus: () => true,
+      });
+      if (response.status === 200 && Array.isArray(response.data?.data)) {
+        const items = response.data.data.map((item: any) => {
+          const productType = String(item.media_product_type || "").toUpperCase();
+          const rawType = String(item.media_type || "").toUpperCase();
+          const isReel = productType === "REELS" || String(item.permalink || "").includes("/reel/");
+          const child = item.children?.data?.[0] || {};
+          const mediaUrl = item.media_url || item.thumbnail_url || child.media_url || child.thumbnail_url || "";
+          return {
+            id: String(item.id || ""),
+            caption: item.caption || "",
+            media_type: rawType,
+            product_type: productType,
+            kind: isReel ? "REEL" : rawType === "CAROUSEL_ALBUM" ? "CAROUSEL" : rawType === "VIDEO" ? "VIDEO" : "POST",
+            media_url: mediaUrl,
+            thumbnail_url: item.thumbnail_url || child.thumbnail_url || mediaUrl,
+            permalink: item.permalink || "",
+            timestamp: item.timestamp || "",
+            like_count: Number(item.like_count) || 0,
+            comments_count: Number(item.comments_count) || 0,
+          };
+        });
+        return {
+          data: items,
+          nextCursor: response.data.paging?.cursors?.after || "",
+          hasMore: Boolean(response.data.paging?.cursors?.after) || Boolean(response.data.paging?.next),
+        };
+      }
+    }
+    return { error: "Failed to fetch Instagram media", data: [] };
+  }
+
   app.get("/api/ig/media", async (req, res) => {
     const accessToken = String(req.query.accessToken || "");
-
     if (!accessToken) {
-      return res.status(400).json({ error: "Missing access token" });
+      return res.status(400).json({ error: "Missing access token", data: [] });
     }
-
     try {
-      const response = await axios.get(
-        "https://graph.instagram.com/v21.0/me/media",
-        {
-          params: {
-            fields:
-              "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp",
-            access_token: accessToken
-          }
-        }
+      return res.json(
+        await handleIgMedia(
+          accessToken,
+          String(req.query.igUserId || ""),
+          String(req.query.after || ""),
+          String(req.query.limit || "25")
+        )
       );
-      return res.json(response.data);
     } catch (error: any) {
-      console.error(
-        "IG Media Fetch Error:",
-        error.response?.data || error.message
+      console.error("IG Media Fetch Error:", error.response?.data || error.message);
+      return res.status(200).json({ error: "Failed to fetch Instagram media", data: [] });
+    }
+  });
+
+  app.post("/api/ig/media", async (req, res) => {
+    const accessToken = String(req.body?.accessToken || req.query.accessToken || "");
+    if (!accessToken) {
+      return res.status(400).json({ error: "Missing access token", data: [] });
+    }
+    try {
+      return res.json(
+        await handleIgMedia(
+          accessToken,
+          String(req.body?.igUserId || req.query.igUserId || ""),
+          String(req.body?.after || req.query.after || ""),
+          String(req.body?.limit || req.query.limit || "25")
+        )
       );
-      return res.status(500).json({ error: "Failed to fetch Instagram media" });
+    } catch (error: any) {
+      console.error("IG Media Fetch Error:", error.response?.data || error.message);
+      return res.status(200).json({ error: "Failed to fetch Instagram media", data: [] });
     }
   });
 
